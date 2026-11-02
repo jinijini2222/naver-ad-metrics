@@ -78,7 +78,9 @@ function clearDemoData() {
     function (r) { return str_(r[1]).indexOf(DEMO.CREATIVE_PREFIX) === 0 || str_(r[0]).indexOf(DEMO.WORK_PREFIX) === 0; });
   n += removeRowsWhere_(ss.getSheetByName(SHEETS.ALERT_LOG), HEADERS[SHEETS.ALERT_LOG].length,
     function (r) { return str_(r[1]).indexOf(DEMO.WORK_PREFIX) === 0; });
-  runVerdict(); // 판정 탭을 남은 실제 데이터 기준으로 다시 쓴다
+  n += removeRowsWhere_(ss.getSheetByName(SHEETS.BANNER), HEADERS[SHEETS.BANNER].length,
+    function (r) { return str_(r[0]).indexOf(DEMO.WORK_PREFIX) === 0; });
+  runVerdict(); // 판정·성과기록 탭을 남은 실제 데이터 기준으로 다시 쓴다
   Logger.log('데모 데이터 ' + n + '행 삭제');
 }
 

@@ -8,6 +8,7 @@ var SHEETS = {
   MAPPING: '매핑',
   VERDICT: '판정',
   ALERT_LOG: '알림_로그',
+  BANNER: '성과기록_배너',
   SETTINGS: '설정'
 };
 
@@ -19,6 +20,9 @@ HEADERS[SHEETS.MAPPING] = ['작업물 ID', '네이버 소재 ID', '광고 상품
 HEADERS[SHEETS.VERDICT] = ['작업물 ID', '주차', 'CTR', '기준선', '판정비율', '판정', '전환율', 'CPC', 'ROAS',
   '순위 영향 여부', '3주 추이', '광고 상품', '알림 유형', '비고', '기준 전환율'];
 HEADERS[SHEETS.ALERT_LOG] = ['발송일', '작업물 ID', '알림 유형', 'AI 개선안 전문', '발송 대상'];
+// 임시 성과 기록 템플릿 (디자이너용 배너 시트). C~O열은 스크립트가 판정 탭에서 채운다.
+HEADERS[SHEETS.BANNER] = ['작업물 ID', '작업물 이름', '광고 상품', '게시일', '최근 주차', 'CTR', '기준선 CTR', '기준선 대비',
+  '판정', '전환율', 'CPC', 'ROAS', '순위 영향', '3주 추이', '알림 유형', '조치', '조치일', '메모'];
 
 // 설정 탭 기본값 (PRD 5, 8절). [키, 값, 설명]
 var SETTINGS_DEFAULTS = [

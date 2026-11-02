@@ -50,6 +50,7 @@ function setupSheets() {
   // 날짜 비교가 어긋나지 않도록 시트 시간대를 서울로 맞추고, 매핑 탭 입력 규칙을 적용
   ss.setSpreadsheetTimeZone('Asia/Seoul');
   applyMappingInputRules_(ss);
+  applyBannerSheetRules_(ss);
 
   // 스크립트만 쓰는 탭은 직접 편집 시 경고 (매핑·설정은 사람이 편집)
   [SHEETS.RAW, SHEETS.VERDICT, SHEETS.ALERT_LOG].forEach(function (name) {

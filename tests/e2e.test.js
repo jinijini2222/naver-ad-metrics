@@ -19,6 +19,7 @@ function makeSheet(name) {
         setValues: (v) => { v.forEach((row, i) => row.forEach((x, j) => set(r + i, c + j, x))); return rg; },
         clearContent: () => { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) set(r + i, c + j, ''); return rg; },
         setNumberFormat: () => rg, setFontWeight: () => rg, setNote: () => rg,
+        protect: () => { const p = { setDescription: () => p, setWarningOnly: () => { prot.push(p); return p; } }; return p; },
         setDataValidation: (rule) => { validations.push({ tab: name, col: c, rows: nr, rule }); return rg; },
       };
       return rg;
@@ -45,10 +46,10 @@ const ss = {
 };
 const mails = [];
 const globals = {
-  SpreadsheetApp: { getActive: () => ss, getActiveSpreadsheet: () => ss, ProtectionType: { SHEET: 'SHEET' },
+  SpreadsheetApp: { getActive: () => ss, getActiveSpreadsheet: () => ss, ProtectionType: { SHEET: 'SHEET', RANGE: 'RANGE' },
     newDataValidation: () => { const b = { _: {}, requireValueInList(l) { b._.list = l; return b; }, requireDate() { b._.date = true; return b; },
       setAllowInvalid(x) { b._.allowInvalid = x; return b; }, setHelpText() { return b; }, build: () => b._ }; return b; },
-    newConditionalFormatRule: () => { const b = { _: {}, whenFormulaSatisfied(f) { b._.formula = f; return b; }, setBackground() { return b; },
+    newConditionalFormatRule: () => { const b = { _: {}, whenFormulaSatisfied(f) { b._.formula = f; return b; }, whenTextEqualTo(t) { b._.text = t; return b; }, setBackground() { return b; },
       setRanges() { return b; }, build: () => b._ }; return b; } },
   MailApp: { sendEmail: (o) => mails.push(o) },
   Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@test.com' }) },
@@ -63,7 +64,7 @@ const globals = {
     },
   },
 };
-const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
+const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Banner.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
 const run = (fn) => call(`${fn}()`);
 const TABS = ['네이버_원본', '매핑', '판정', '알림_로그', '설정'];
 const count = (tab) => sheets[tab].rows().length;
@@ -77,6 +78,9 @@ assert.strictEqual(sheets['설정'].rows().length, 10);
 run('setupSheets');                                                     // 다시 실행해도 중복 없음
 assert.strictEqual(sheets['설정'].rows().length, 10);
 assert.strictEqual(ss.tz, 'Asia/Seoul', '시트 시간대를 서울로');
+assert.strictEqual(sheets['성과기록_배너'].header().length, 18, '성과기록_배너 탭 생성');
+assert.ok(validations.some((x) => x.tab === '성과기록_배너' && x.col === 16 && x.rule.list.length === 5), '조치 드롭다운');
+assert.ok(cfRules.some((r) => r.text === '개선 필요'), '판정 색');
 const prodRule = validations.find((x) => x.tab === '매핑' && x.col === 3).rule;
 assert.deepStrictEqual(JSON.parse(JSON.stringify(prodRule.list)), ['쇼핑검색', '파워링크 확장소재', '파워링크 텍스트']);
 assert.strictEqual(prodRule.allowInvalid, false);
@@ -157,11 +161,43 @@ console.log('OK 알림 발송 (수신자 없음 → 오류 메일 / 있음 → �
   console.log('OK 교체 후 새 작업물 미등록 → 빈 행 추가 / 매핑 점검');
 }
 
+// 5-2) 성과기록_배너: 판정 최신 주를 작업물 ID별로 채우고, 디자이너가 쓴 열은 보존
+{
+  const B = sheets['성과기록_배너'];
+  const rows = () => B.rows();
+  assert.strictEqual(rows().length, 10, '매핑된 작업물 10개');
+  const row = (id) => rows().find((r) => r[0] === id);
+  assert.strictEqual(row('DEMO_S1')[2], '쇼핑검색');
+  assert.strictEqual(row('DEMO_S1')[4], lastWeek);
+  assert.strictEqual(row('DEMO_S1')[8], '개선 필요');
+  assert.strictEqual(row('DEMO_S1')[14], '개선 필요');
+  assert.ok(row('DEMO_S1')[7] < 0, '기준선 대비 음수');
+  assert.strictEqual(row('DEMO_P1')[12], '순위 영향 가능');
+  // 교체되어 마지막 주가 빠진 DEMO_S5는 그 작업물의 최근 주차(2주 전)를 보여줌
+  assert.strictEqual(row('DEMO_S5')[4], call('getWeekRange_(new Date(), 2)').since);
+
+  const r1 = rows().findIndex((r) => r[0] === 'DEMO_S1') + 2;
+  B.setCell(r1, 2, '추석 배너'); B.setCell(r1, 16, '교체 완료'); B.setCell(r1, 18, '10/26 교체');
+  const order = rows().map((r) => r[0]);
+  sheets['매핑'].appendRow(['DEMO_X', 'demo-X', '쇼핑검색', '', '', '데모 데이터']);
+  run('runVerdict');
+  assert.strictEqual(rows().length, 11, '새 작업물 한 줄 추가');
+  assert.deepStrictEqual(rows().map((r) => r[0]).slice(0, 10), order, '기존 행 순서 유지');
+  assert.strictEqual(row('DEMO_S1')[1], '추석 배너');
+  assert.strictEqual(row('DEMO_S1')[15], '교체 완료');
+  assert.strictEqual(row('DEMO_S1')[17], '10/26 교체');
+  assert.strictEqual(row('DEMO_X')[8], '', '판정이 없는 작업물은 자동 열 빈칸');
+  run('runVerdict');
+  assert.strictEqual(rows().length, 11, '재실행해도 중복 없음');
+  console.log('OK 성과기록_배너 (최신 주 자동 채움 / 수동 열 보존 / 신규 추가 / 재실행 안전)');
+}
+
 // 6) 삭제 후: 데이터가 없으면 판정 작업이 오류 메일로 중단
 run('clearDemoData');
 assert.strictEqual(count('네이버_원본'), 0);
 assert.strictEqual(count('매핑'), 0);
 assert.strictEqual(count('판정'), 0);
+assert.strictEqual(count('성과기록_배너'), 0, '데모 작업물 행 삭제');
 assert.strictEqual(sheets['알림_로그'].rows().filter((r) => r[1].indexOf('DEMO_') === 0).length, 0);
 const before = mails.length;
 assert.throws(() => run('runVerdictJob'), /지난주\(.*\) 데이터가 수집되지 않아 판정을 건너뜁니다/);

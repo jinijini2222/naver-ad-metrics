@@ -21,6 +21,11 @@ function runVerdict() {
 
   var res = computeVerdicts_(raw, mapping, settings);
   writeVerdictSheet_(ss, res.rows);
+  try {
+    syncBannerSheet_(ss, res.rows, mapping); // 성과기록_배너 탭 갱신 (실패해도 판정은 유지)
+  } catch (e) {
+    Logger.log('성과기록_배너 동기화 실패: ' + e);
+  }
   var added = addUnmappedToMapping_(ss, res.unmapped);
 
   Logger.log('판정 ' + res.rows.length + '행, 미매핑 신규 ' + added + '개, 최신 주 매핑률 ' +
