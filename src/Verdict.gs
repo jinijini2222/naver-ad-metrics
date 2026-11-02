@@ -148,22 +148,23 @@ function computeVerdicts_(raw, mapping, s) {
   var pool = {};
   judged.forEach(function (r) {
     var p = pool[r.product] = pool[r.product] || {};
-    var w = p[r.since] = p[r.since] || { imp: 0, clk: 0, rankSum: 0, rankImp: 0, ids: {} };
-    w.imp += r.imp; w.clk += r.clk;
+    var w = p[r.since] = p[r.since] || { imp: 0, clk: 0, conv: 0, rankSum: 0, rankImp: 0, ids: {} };
+    w.imp += r.imp; w.clk += r.clk; w.conv += r.conv;
     if (r.rank > 0 && r.imp > 0) { w.rankSum += r.rank * r.imp; w.rankImp += r.imp; }
     if (r.imp > 0) w.ids[r.creativeId] = true;
   });
 
   function baselineFor(product, week) {
-    var t = { imp: 0, clk: 0, rankSum: 0, rankImp: 0 }, ids = {};
+    var t = { imp: 0, clk: 0, conv: 0, rankSum: 0, rankImp: 0 }, ids = {};
     for (var i = 0; i < s.baselineWeeks; i++) {
       var w = (pool[product] || {})[addDays_(week, -7 * i)];
       if (!w) continue;
-      t.imp += w.imp; t.clk += w.clk; t.rankSum += w.rankSum; t.rankImp += w.rankImp;
+      t.imp += w.imp; t.clk += w.clk; t.conv += w.conv; t.rankSum += w.rankSum; t.rankImp += w.rankImp;
       Object.keys(w.ids).forEach(function (id) { ids[id] = true; });
     }
     return {
       ctr: t.imp > 0 ? t.clk / t.imp : null,
+      convRate: t.clk > 0 ? t.conv / t.clk : null,
       rank: t.rankImp > 0 ? t.rankSum / t.rankImp : null,
       creativeCount: Object.keys(ids).length
     };
@@ -233,7 +234,7 @@ function computeVerdicts_(raw, mapping, s) {
         a.clk > 0 ? a.conv / a.clk : null,
         a.clk > 0 ? a.cost / a.clk : null,
         a.cost > 0 ? a.convAmt / a.cost : null,
-        rankFlag, trend, w.product, alertType, notes.join('; ')
+        rankFlag, trend, w.product, alertType, notes.join('; '), base.convRate
       ].map(function (v) { return v === null ? '' : v; }));
     });
   });

@@ -1,7 +1,7 @@
 # 0단계 조사 결과 (공식 API 문서 기준)
 
 출처: naver/searchad-apidoc GitHub, naver.github.io/searchad-apidoc (샘플 코드, Swagger JSON, 에러 코드 표, 공지·릴리스 노트). 조사일 2026-11-02. 서비스 URL `https://api.searchad.naver.com`.
-**현재는 API 키를 받을 수 없어 보고서 업로드 방식을 쓴다.** 이 문서는 키를 확보해 API 방식으로 전환할 때를 위한 기록이다.
+마케터가 **네이버 검색광고 API 키만 발급 가능**하다고 확인해 API 방식으로 진행한다. 아래 "확인 불가" 항목은 키를 받은 뒤 실제 계정에서 확인한다.
 
 ## 확인된 사항
 
@@ -32,9 +32,17 @@
 - 직접/간접 전환 구분 (`/stats`에는 없음, 전환 보고서의 `Conversion Method`로만 확인)
 - 읽기 전용 구성원의 키 발급 가능 여부, 관리계정 키로 하위 광고주 직접 조회 가능 여부, 고객 ID 확인 위치
 
-## 현재 API 코드와의 차이 (키 확보 시 수정할 곳)
+## API 코드에 반영한 내용 (2026-11-02)
 
-1. `Config.gs`의 `IMAGE_EXTENSION_TYPES`: `['IMAGE', 'IMAGE_SUB_LINKS']` → `['POWER_LINK_IMAGE', 'IMAGE_SUB_LINKS']`
-2. `Collect.gs`의 `fetchStats_`: `timeIncrement=allDays` 추가, 캠페인 유형별로 묶어서 호출
-3. `NaverApi.gs`: 429 대기 시간 확대
-4. `Setup.gs`: 키 입력창 문구를 "API 라이선스"로
+1. `IMAGE_EXTENSION_TYPES`를 `['POWER_LINK_IMAGE', 'IMAGE_SUB_LINKS']`로 수정
+2. `fetchStats_`: `timeIncrement=allDays` 추가, 광고 상품별로 묶어서 호출(캠페인 유형이 섞이면 400), 감싸진 응답도 처리
+3. 429 대기 시간 확대(5초, 10초, 20초)
+4. 키 입력창 문구를 "API 라이선스"로
+5. 확장소재 `/stats` 조회가 실패하면 STAT-REPORT `ADEXTENSION` 방식이 필요할 수 있다는 안내를 오류에 포함
+
+## 키를 받은 뒤 가장 먼저 확인할 것
+
+1. `testListCampaigns()`로 인증이 통과하는지 (헤더·서명이 문서와 일치하는지)
+2. 쇼핑검색 소재가 `/ncc/ads`로 조회되는지, 쇼핑 캠페인의 `avgRnk`가 0인지
+3. 확장소재 ID를 `/stats`에 넣었을 때 성과가 오는지 (안 되면 STAT-REPORT 방식)
+4. `ids` 50개 묶음이 통과하는지, 소재가 없는 날 응답이 어떻게 오는지

@@ -63,6 +63,12 @@ assert.deepStrictEqual(res.mappingRate, { total: 7, unmapped: 1 });
 assert.strictEqual(res.rows[0][1], last);                      // 최신 주 먼저
 console.log('OK 텍스트 제외 / 미매핑 / 매핑률 / 정렬');
 
+// 기준 전환율: 해당 주 포함 4주 풀의 전환수 합 ÷ 클릭수 합 (테스트 데이터는 행마다 conv=1)
+const poolRows = raw.filter((r) => r.product === SH && WEEKS.includes(r.since));
+const expectedConv = poolRows.reduce((a, r) => a + r.conv, 0) / poolRows.reduce((a, r) => a + r.clk, 0);
+assert.ok(Math.abs(find(res, 'W6', last)[14] - expectedConv) < 1e-12, '기준 전환율 = 4주 전환수 합 ÷ 클릭수 합');
+console.log('OK 기준 전환율');
+
 // ---- 경계값: 정확히 +20%, -20% ----
 {
   const r2 = [], m2 = [];

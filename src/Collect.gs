@@ -1,11 +1,11 @@
 /**
  * 2단계: 네이버 광고 소재 목록 + 지난주 성과를 수집해 '네이버_원본' 탭에 기록한다.
- * 모두 조회(GET)만 사용한다.
+ * 모두 조회(GET)만 사용한다. 필드명·엔드포인트는 0단계 조사 결과(docs/STAGE0_FINDINGS.md) 기준.
  */
 
 // ---------- 진입점 ----------
 
-/** 월 09:00 트리거용. 지난주 수집 + 2주 전 재수집. */
+/** 월 09:00 트리거용. 지난주 수집 + 2주 전 재수집. 실패하면 오류 메일 + 알림_로그 기록. */
 function collectWeekly() {
   var started = Date.now();
   try {
@@ -15,8 +15,8 @@ function collectWeekly() {
       collectRange_(creatives, range, started);
     });
   } catch (e) {
-    logCollectError_(e);
-    throw e; // 트리거 실행 기록에도 실패로 남김. 오류 메일은 4단계에서 연결
+    notifyError_('수집 실패', e);
+    throw e; // 트리거 실행 기록에도 실패로 남김
   }
 }
 
@@ -63,21 +63,22 @@ function fetchCreativeList_(started) {
   campaigns.forEach(function (camp) {
     var isShopping = camp.campaignTp === CAMPAIGN_TYPE.SHOPPING;
     var isPowerlink = camp.campaignTp === CAMPAIGN_TYPE.POWERLINK;
-    if (!isShopping && !isPowerlink) return; // Phase 1 범위 밖 (성과형 디스플레이 등)
+    if (!isShopping && !isPowerlink) return; // Phase 1 범위 밖 (브랜드검색, 플레이스 등)
 
     var adgroups = naverGet_(ENDPOINTS.ADGROUPS, { nccCampaignId: camp.nccCampaignId });
     adgroups.forEach(function (grp) {
       assertTimeLeft_(started);
 
-      if (isShopping) {
-        naverGet_(ENDPOINTS.ADS, { nccAdgroupId: grp.nccAdgroupId }).forEach(function (ad) {
-          list.push({ id: ad.nccAdId, product: PRODUCT.SHOPPING, campaign: camp.name, adgroup: grp.name });
+      // 쇼핑검색은 광고 목록의 SHOPPING_PRODUCT_AD 등으로 조회되는 구조로 보인다 (실제 계정에서 확인 필요)
+      naverGet_(ENDPOINTS.ADS, { nccAdgroupId: grp.nccAdgroupId }).forEach(function (ad) {
+        list.push({
+          id: ad.nccAdId,
+          product: isShopping ? PRODUCT.SHOPPING : PRODUCT.POWERLINK_TEXT, // 파워링크 텍스트: 수집만, 판정 제외
+          campaign: camp.name, adgroup: grp.name
         });
-      } else {
-        // 파워링크: 텍스트 소재(수집만, 판정 제외) + 이미지형 확장소재
-        naverGet_(ENDPOINTS.ADS, { nccAdgroupId: grp.nccAdgroupId }).forEach(function (ad) {
-          list.push({ id: ad.nccAdId, product: PRODUCT.POWERLINK_TEXT, campaign: camp.name, adgroup: grp.name });
-        });
+      });
+
+      if (isPowerlink) {
         naverGet_(ENDPOINTS.AD_EXTENSIONS, { ownerId: grp.nccAdgroupId }).forEach(function (ext) {
           if (IMAGE_EXTENSION_TYPES.indexOf(ext.type) === -1) return;
           list.push({ id: ext.nccAdExtensionId, product: PRODUCT.POWERLINK_IMAGE, campaign: camp.name, adgroup: grp.name });
@@ -93,25 +94,55 @@ function fetchCreativeList_(started) {
 // ---------- 성과 조회 ----------
 
 /**
- * 소재 ID 묶음으로 stats 조회. 응답에 없는 소재는 0으로 채운다.
+ * 광고 상품별로 묶어(캠페인 유형이 섞이면 400) 소재 ID 묶음으로 stats 조회.
+ * 응답에 없는 소재는 호출하는 쪽에서 0으로 채운다.
  * @return {Object<string, Object>} id → 지표
  */
-function fetchStats_(ids, range, started) {
+function fetchStats_(creatives, range, started) {
   var fields = [STAT_FIELDS.IMPRESSIONS, STAT_FIELDS.CLICKS, STAT_FIELDS.COST,
     STAT_FIELDS.CONVERSIONS, STAT_FIELDS.CONV_AMOUNT, STAT_FIELDS.AVG_RANK];
-  var result = {};
+  var byProduct = {};
+  creatives.forEach(function (c) { (byProduct[c.product] = byProduct[c.product] || []).push(c.id); });
 
-  for (var i = 0; i < ids.length; i += COLLECT.STATS_BATCH_SIZE) {
-    assertTimeLeft_(started);
-    var batch = ids.slice(i, i + COLLECT.STATS_BATCH_SIZE);
-    var res = naverGet_(ENDPOINTS.STATS, {
-      ids: batch.join(','),
-      fields: JSON.stringify(fields),
-      timeRange: JSON.stringify({ since: range.since, until: range.until })
-    });
-    (res.data || []).forEach(function (row) { result[row.id] = row; });
-  }
+  var result = {};
+  Object.keys(byProduct).forEach(function (product) {
+    var ids = byProduct[product];
+    for (var i = 0; i < ids.length; i += COLLECT.STATS_BATCH_SIZE) {
+      assertTimeLeft_(started);
+      var batch = ids.slice(i, i + COLLECT.STATS_BATCH_SIZE);
+      var res;
+      try {
+        res = naverGet_(ENDPOINTS.STATS, {
+          ids: batch.join(','),
+          fields: JSON.stringify(fields),
+          timeRange: JSON.stringify({ since: range.since, until: range.until }),
+          timeIncrement: 'allDays' // ids 조회는 allDays만 허용
+        });
+      } catch (e) {
+        if (product === PRODUCT.POWERLINK_IMAGE) {
+          throw new Error(e.message + ' | 확장소재 ID를 /stats로 조회할 수 있다는 근거가 문서에 없습니다. ' +
+            'STAT-REPORT ADEXTENSION 보고서 방식이 필요할 수 있습니다 (docs/STAGE0_FINDINGS.md).');
+        }
+        throw e;
+      }
+      extractStatRows_(res).forEach(function (row) { result[row.id] = row; });
+    }
+  });
   return result;
+}
+
+/** 응답이 { data: [...] } 이든, 한 번 감싸진 { xxxStatResponse: { data: [...] } } 이든 행 배열을 꺼낸다. */
+function extractStatRows_(res) {
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.data)) return res.data;
+  var rows = [];
+  if (res && typeof res === 'object') {
+    Object.keys(res).forEach(function (k) {
+      var v = res[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.data)) rows = rows.concat(v.data);
+    });
+  }
+  return rows;
 }
 
 function num_(v) { return typeof v === 'number' && isFinite(v) ? v : Number(v) || 0; }
@@ -133,8 +164,7 @@ function collectRange_(creatives, range, started) {
     Logger.log('수집할 소재가 없습니다.');
     return;
   }
-  var ids = creatives.map(function (c) { return c.id; });
-  var stats = fetchStats_(ids, range, started);
+  var stats = fetchStats_(creatives, range, started);
   var collectedAt = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
   var rows = buildRawRows_(creatives, stats, range, collectedAt);
   var r = upsertRawRows_(rows);
@@ -197,14 +227,4 @@ function assertTimeLeft_(started) {
   if (Date.now() - started > COLLECT.MAX_RUN_MS) {
     throw new Error('실행 시간 한도에 근접해 수집을 중단했습니다. 소재 수가 많으면 트리거를 분리하세요.');
   }
-}
-
-function logCollectError_(e) {
-  try {
-    var sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.ALERT_LOG);
-    if (sheet) {
-      var now = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
-      sheet.appendRow([now, '', '수집 오류', String(e && e.message || e), '']);
-    }
-  } catch (ignored) { /* 로그 실패가 원래 오류를 가리지 않도록 */ }
 }

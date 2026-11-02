@@ -17,7 +17,7 @@ HEADERS[SHEETS.RAW] = ['수집일', '기간시작', '기간종료', '광고 상�
   '노출수', '클릭수', '광고비', '전환수', '전환매출', '평균 노출 순위'];
 HEADERS[SHEETS.MAPPING] = ['작업물 ID', '네이버 소재 ID', '광고 상품', '게시일', '교체일', '메모'];
 HEADERS[SHEETS.VERDICT] = ['작업물 ID', '주차', 'CTR', '기준선', '판정비율', '판정', '전환율', 'CPC', 'ROAS',
-  '순위 영향 여부', '3주 추이', '광고 상품', '알림 유형', '비고'];
+  '순위 영향 여부', '3주 추이', '광고 상품', '알림 유형', '비고', '기준 전환율'];
 HEADERS[SHEETS.ALERT_LOG] = ['발송일', '작업물 ID', '알림 유형', 'AI 개선안 전문', '발송 대상'];
 
 // 설정 탭 기본값 (PRD 5, 8절). [키, 값, 설명]
@@ -45,13 +45,14 @@ var PROP = {
 var NAVER_API = {
   BASE_URL: 'https://api.searchad.naver.com',
   MAX_RETRY: 3,
-  RETRY_WAIT_MS: 1000,
+  RETRY_WAIT_MS: 5000,   // 429는 길게 쉬었다 재시도 (5초, 10초, 20초)
   REQUEST_GAP_MS: 200
 };
 
 /**
- * stats 지표 필드명 (예상값). 0단계에서 공식 문서(naver/searchad-apidoc)로 확정 후 수정한다.
+ * stats 지표 필드명 (0단계 조사로 확인됨, 공식 문서 searchad-apidoc 기준).
  * API 사양이 바뀌어도 이 상수만 고치면 되도록 분리했다.
+ * avgRnk는 파워링크에만 의미가 있다. recentAvgRnk/recentAvgCpc는 2025-10-27부터 항상 0이라 쓰지 않는다.
  */
 var STAT_FIELDS = {
   IMPRESSIONS: 'impCnt',
@@ -62,7 +63,7 @@ var STAT_FIELDS = {
   AVG_RANK: 'avgRnk'
 };
 
-// 조회 전용 엔드포인트 (경로는 0단계에서 공식 문서로 확인)
+// 조회 전용 엔드포인트
 var ENDPOINTS = {
   CAMPAIGNS: '/ncc/campaigns',
   ADGROUPS: '/ncc/adgroups'
@@ -77,18 +78,18 @@ var PRODUCT = {
   POWERLINK_TEXT: '파워링크 텍스트'
 };
 
-// 조회 전용 엔드포인트 추가 (경로·파라미터는 0단계에서 공식 문서로 확정)
+// 조회 전용 엔드포인트 추가 (0단계 조사로 확인, docs/STAGE0_FINDINGS.md)
 ENDPOINTS.ADS = '/ncc/ads';                    // ?nccAdgroupId=
 ENDPOINTS.AD_EXTENSIONS = '/ncc/ad-extensions'; // ?ownerId=
 ENDPOINTS.STATS = '/stats';                    // ?ids=&fields=&timeRange=
 
-// 캠페인 유형 → 광고 상품 (예상값, 확인 필요)
+// 캠페인 유형 → 광고 상품 (확인됨)
 var CAMPAIGN_TYPE = {
   SHOPPING: 'SHOPPING',
   POWERLINK: 'WEB_SITE'
 };
-// 파워링크 확장소재 중 이미지형 (예상값, 확인 필요)
-var IMAGE_EXTENSION_TYPES = ['IMAGE', 'IMAGE_SUB_LINKS'];
+// 파워링크 확장소재 중 이미지형 (확인됨: 파워링크 이미지, 이미지 서브링크)
+var IMAGE_EXTENSION_TYPES = ['POWER_LINK_IMAGE', 'IMAGE_SUB_LINKS'];
 
 var COLLECT = {
   STATS_BATCH_SIZE: 50,      // stats 1회 요청당 소재 ID 수

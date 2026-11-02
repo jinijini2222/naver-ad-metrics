@@ -7,6 +7,10 @@ function onOpen() {
     .addItem('3. 연결 테스트 (캠페인 목록)', 'testListCampaigns')
     .addItem('4. 지난주 수집 (수동)', 'collectLastWeekOnly')
     .addItem('5. 판정 실행', 'runVerdict')
+    .addSeparator()
+    .addItem('6. 트리거 설치 (월요일 자동 실행)', 'installTriggers')
+    .addItem('7. 알림 미리보기 (발송 안 함)', 'previewAlert')
+    .addItem('8. 알림 발송 (수동)', 'sendWeeklyAlert')
     .addToUi();
 }
 
@@ -76,7 +80,7 @@ function setCredentials() {
   var ui = SpreadsheetApp.getUi();
   var props = PropertiesService.getScriptProperties();
   var items = [
-    [PROP.NAVER_API_KEY, '네이버 검색광고 API 키 (액세스라이선스)'],
+    [PROP.NAVER_API_KEY, '네이버 검색광고 API 라이선스 (X-API-KEY)'],
     [PROP.NAVER_SECRET_KEY, '네이버 검색광고 비밀키'],
     [PROP.NAVER_CUSTOMER_ID, '네이버 고객 ID']
   ];
