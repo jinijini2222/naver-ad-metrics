@@ -16,3 +16,14 @@ function testListCampaigns() {
     SpreadsheetApp.getActive().toast('캠페인 ' + campaigns.length + '개 조회 성공 (로그 확인)', '네이버 광고', 5);
   } catch (e) { /* 시트 UI가 없는 실행 환경 */ }
 }
+
+/** 2단계 순수 함수 확인 (네이버 호출 없음) */
+function testCollectHelpers() {
+  // 2026-11-02(월) 기준 지난주 = 10/26~11/01, 2주 전 = 10/19~10/25
+  Logger.log(JSON.stringify(getWeekRange_(new Date('2026-11-02T00:30:00+09:00'), 1)));
+  Logger.log(JSON.stringify(getWeekRange_(new Date('2026-11-02T00:30:00+09:00'), 3)));
+  var rows = buildRawRows_(
+    [{ id: 'a1', product: PRODUCT.SHOPPING, campaign: 'c', adgroup: 'g' }],
+    {}, { since: '2026-10-26', until: '2026-11-01' }, 'x');
+  Logger.log(JSON.stringify(rows)); // 성과 없는 소재는 0으로 채워짐
+}

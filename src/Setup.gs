@@ -5,6 +5,7 @@ function onOpen() {
     .addItem('1. 시트 초기화', 'setupSheets')
     .addItem('2. API 키 입력', 'setCredentials')
     .addItem('3. 연결 테스트 (캠페인 목록)', 'testListCampaigns')
+    .addItem('4. 지난주 수집 (수동)', 'collectLastWeekOnly')
     .addToUi();
 }
 

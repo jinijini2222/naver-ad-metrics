@@ -63,3 +63,31 @@ var ENDPOINTS = {
   CAMPAIGNS: '/ncc/campaigns',
   ADGROUPS: '/ncc/adgroups'
 };
+
+// ---- 2단계: 수집 ----
+
+// 광고 상품 구분 (원본 탭 '광고 상품' 값과 판정 단위)
+var PRODUCT = {
+  SHOPPING: '쇼핑검색',
+  POWERLINK_IMAGE: '파워링크 확장소재',
+  POWERLINK_TEXT: '파워링크 텍스트'
+};
+
+// 조회 전용 엔드포인트 추가 (경로·파라미터는 0단계에서 공식 문서로 확정)
+ENDPOINTS.ADS = '/ncc/ads';                    // ?nccAdgroupId=
+ENDPOINTS.AD_EXTENSIONS = '/ncc/ad-extensions'; // ?ownerId=
+ENDPOINTS.STATS = '/stats';                    // ?ids=&fields=&timeRange=
+
+// 캠페인 유형 → 광고 상품 (예상값, 확인 필요)
+var CAMPAIGN_TYPE = {
+  SHOPPING: 'SHOPPING',
+  POWERLINK: 'WEB_SITE'
+};
+// 파워링크 확장소재 중 이미지형 (예상값, 확인 필요)
+var IMAGE_EXTENSION_TYPES = ['IMAGE', 'IMAGE_SUB_LINKS'];
+
+var COLLECT = {
+  STATS_BATCH_SIZE: 50,      // stats 1회 요청당 소재 ID 수
+  RECOLLECT_WEEKS_AGO: 2,    // 늦게 잡히는 전환 반영용 재수집
+  MAX_RUN_MS: 5 * 60 * 1000  // Apps Script 6분 제한 전에 중단
+};
