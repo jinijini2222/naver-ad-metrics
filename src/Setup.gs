@@ -11,6 +11,9 @@ function onOpen() {
     .addItem('6. 트리거 설치 (월요일 자동 실행)', 'installTriggers')
     .addItem('7. 알림 미리보기 (발송 안 함)', 'previewAlert')
     .addItem('8. 알림 발송 (수동)', 'sendWeeklyAlert')
+    .addSeparator()
+    .addItem('9. 데모 데이터 넣기 (키 없이 테스트)', 'seedDemoData')
+    .addItem('10. 데모 데이터 지우기', 'clearDemoData')
     .addToUi();
 }
 
