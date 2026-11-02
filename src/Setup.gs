@@ -6,6 +6,7 @@ function onOpen() {
     .addItem('2. API 키 입력', 'setCredentials')
     .addItem('3. 연결 테스트 (캠페인 목록)', 'testListCampaigns')
     .addItem('4. 지난주 수집 (수동)', 'collectLastWeekOnly')
+    .addItem('5. 판정 실행', 'runVerdict')
     .addToUi();
 }
 
@@ -23,10 +24,20 @@ function setupSheets() {
   var settings = getOrCreateSheet_(ss, SHEETS.SETTINGS);
   if (settings.getLastRow() === 0) {
     settings.getRange(1, 1, 1, 3).setValues([['항목', '값', '설명']]).setFontWeight('bold');
-    settings.getRange(2, 1, SETTINGS_DEFAULTS.length, 3).setValues(SETTINGS_DEFAULTS);
     settings.setFrozenRows(1);
-    settings.autoResizeColumns(1, 3);
   }
+  // 없는 설정 항목만 추가한다 (기존 값은 유지)
+  var have = {};
+  if (settings.getLastRow() > 1) {
+    settings.getRange(2, 1, settings.getLastRow() - 1, 1).getValues().forEach(function (r) {
+      have[String(r[0]).trim()] = true;
+    });
+  }
+  var missing = SETTINGS_DEFAULTS.filter(function (d) { return !have[d[0]]; });
+  if (missing.length) {
+    settings.getRange(settings.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
+  }
+  settings.autoResizeColumns(1, 3);
 
   // 스크립트만 쓰는 탭은 직접 편집 시 경고 (매핑·설정은 사람이 편집)
   [SHEETS.RAW, SHEETS.VERDICT, SHEETS.ALERT_LOG].forEach(function (name) {
