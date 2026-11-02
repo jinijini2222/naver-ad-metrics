@@ -4,6 +4,7 @@ const assert = require('assert');
 const { load } = require('./helpers');
 
 // ---------- 가짜 스프레드시트 ----------
+const validations = [], cfRules = [];
 function makeSheet(name) {
   const cells = [], prot = [];
   const get = (r, c) => (cells[r - 1] && cells[r - 1][c - 1] !== undefined ? cells[r - 1][c - 1] : '');
@@ -17,12 +18,13 @@ function makeSheet(name) {
         getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => get(r + i, c + j))),
         setValues: (v) => { v.forEach((row, i) => row.forEach((x, j) => set(r + i, c + j, x))); return rg; },
         clearContent: () => { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) set(r + i, c + j, ''); return rg; },
-        setNumberFormat: () => rg, setFontWeight: () => rg,
+        setNumberFormat: () => rg, setFontWeight: () => rg, setNote: () => rg,
+        setDataValidation: (rule) => { validations.push({ tab: name, col: c, rows: nr, rule }); return rg; },
       };
       return rg;
     },
     appendRow: (row) => { const r = lastRow() + 1; row.forEach((x, j) => set(r, j + 1, x)); },
-    setFrozenRows() {}, autoResizeColumns() {},
+    setFrozenRows() {}, autoResizeColumns() {}, setConditionalFormatRules: (r) => { cfRules.push(...r); },
     getProtections: () => prot,
     protect: () => { const p = { setDescription: () => p, setWarningOnly: () => { prot.push(p); return p; } }; return p; },
     rows: () => { const out = []; for (let r = 2; r <= lastRow(); r++) out.push(Array.from({ length: lastCol() }, (_, c) => get(r, c + 1))); return out; },
@@ -39,10 +41,15 @@ const ss = {
   getSheets: () => Object.values(sheets),
   getUrl: () => 'https://docs.google.com/spreadsheets/d/FAKE',
   toast() {},
+  setSpreadsheetTimeZone(tz) { ss.tz = tz; },
 };
 const mails = [];
 const globals = {
-  SpreadsheetApp: { getActive: () => ss, getActiveSpreadsheet: () => ss, ProtectionType: { SHEET: 'SHEET' } },
+  SpreadsheetApp: { getActive: () => ss, getActiveSpreadsheet: () => ss, ProtectionType: { SHEET: 'SHEET' },
+    newDataValidation: () => { const b = { _: {}, requireValueInList(l) { b._.list = l; return b; }, requireDate() { b._.date = true; return b; },
+      setAllowInvalid(x) { b._.allowInvalid = x; return b; }, setHelpText() { return b; }, build: () => b._ }; return b; },
+    newConditionalFormatRule: () => { const b = { _: {}, whenFormulaSatisfied(f) { b._.formula = f; return b; }, setBackground() { return b; },
+      setRanges() { return b; }, build: () => b._ }; return b; } },
   MailApp: { sendEmail: (o) => mails.push(o) },
   Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@test.com' }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: () => null }) },
@@ -56,7 +63,7 @@ const globals = {
     },
   },
 };
-const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
+const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
 const run = (fn) => call(`${fn}()`);
 const TABS = ['네이버_원본', '매핑', '판정', '알림_로그', '설정'];
 const count = (tab) => sheets[tab].rows().length;
@@ -69,7 +76,14 @@ assert.strictEqual(sheets['판정'].header().length, 15);
 assert.strictEqual(sheets['설정'].rows().length, 10);
 run('setupSheets');                                                     // 다시 실행해도 중복 없음
 assert.strictEqual(sheets['설정'].rows().length, 10);
-console.log('OK 시트 초기화 (5개 탭, 헤더, 설정, 재실행 안전)');
+assert.strictEqual(ss.tz, 'Asia/Seoul', '시트 시간대를 서울로');
+const prodRule = validations.find((x) => x.tab === '매핑' && x.col === 3).rule;
+assert.deepStrictEqual(JSON.parse(JSON.stringify(prodRule.list)), ['쇼핑검색', '파워링크 확장소재', '파워링크 텍스트']);
+assert.strictEqual(prodRule.allowInvalid, false);
+const dateRule = validations.find((x) => x.tab === '매핑' && x.col === 4).rule;
+assert.ok(dateRule.date && dateRule.allowInvalid === false);
+assert.ok(cfRules.some((r) => r.formula === '=AND($A2="",$B2<>"")'), '미등록 행 강조');
+console.log('OK 시트 초기화 (5개 탭, 헤더, 설정, 시간대, 매핑 입력 규칙, 재실행 안전)');
 
 // 2) 데모 데이터
 run('seedDemoData');
@@ -122,6 +136,26 @@ assert.match(mails[1].body, /미매핑 소재 1건[\s\S]*demo-S6/);
 assert.ok(mails[1].htmlBody.includes('href="https://docs.google.com/spreadsheets/d/FAKE"'));
 assert.ok(sheets['알림_로그'].rows().filter((r) => r[1].indexOf('DEMO_') === 0).length === 3, '소재별 로그 3건');
 console.log('OK 알림 발송 (수신자 없음 → 오류 메일 / 있음 → 발송 + 로그)');
+
+// 5-1) 썸네일을 교체했는데 새 작업물 행을 안 만든 경우: 조용히 버리지 않고 빈 행이 추가된다
+{
+  const rows = sheets['매핑'].rows();
+  const idx = rows.findIndex((r) => r[0] === 'DEMO_S5');
+  sheets['매핑'].setCell(idx + 2, 5, lastWeek);              // 교체일 = 지난주 월요일
+  const mapBefore = count('매핑');
+  run('runVerdict');
+  assert.strictEqual(count('매핑'), mapBefore + 1, 'demo-S5 빈 행 추가');
+  const added = sheets['매핑'].rows().filter((r) => r[0] === '' && r[1] === 'demo-S5');
+  assert.strictEqual(added.length, 1);
+  assert.match(added[0][5], /교체 후 새 작업물 등록 필요/);
+  assert.ok(!v('DEMO_S5'), '교체 이후 주는 DEMO_S5 판정에서 빠짐');
+  run('runVerdict');
+  assert.strictEqual(count('매핑'), mapBefore + 1, '재실행해도 빈 행은 한 번만');
+  const issues = call('checkMapping()');
+  assert.ok(issues.some((i) => i.level === '안내' && /demo-S5/.test(i.msg)));
+  assert.ok(!issues.some((i) => i.level === '오류'));
+  console.log('OK 교체 후 새 작업물 미등록 → 빈 행 추가 / 매핑 점검');
+}
 
 // 6) 삭제 후: 데이터가 없으면 판정 작업이 오류 메일로 중단
 run('clearDemoData');

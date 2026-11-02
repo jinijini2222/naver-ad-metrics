@@ -61,10 +61,11 @@ function parseRaw_(rows) {
 
 function parseMapping_(rows) {
   var out = [];
-  rows.forEach(function (r) {
+  rows.forEach(function (r, i) {
     var workId = str_(r[0]), creativeId = str_(r[1]);
     if (!workId && !creativeId) return;
     out.push({
+      row: i + 2, // 시트 행 번호 (헤더 다음이 2행)
       workId: workId, creativeId: creativeId, product: str_(r[2]),
       postedAt: dateOrEmpty_(r[3]), replacedAt: dateOrEmpty_(r[4]), memo: str_(r[5])
     });
@@ -130,13 +131,22 @@ function computeVerdicts_(raw, mapping, s) {
   judged.forEach(function (r) {
     var cands = mapByCreative[r.creativeId] || [];
     if (!cands.length) {
-      unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign, adgroup: r.adgroup };
+      unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign, adgroup: r.adgroup, reason: '' };
       return;
     }
     var hit = cands.filter(function (m) {
       return (!m.postedAt || r.since >= m.postedAt) && (!m.replacedAt || r.since < m.replacedAt);
     })[0];
-    if (!hit) return; // 게시 전/교체 후 기간: 이 작업물의 성과가 아님
+    if (!hit) {
+      // 모든 매핑 행의 교체일이 지난 뒤의 주: 새 작업물을 등록하지 않은 것 → 조용히 버리지 않고 미매핑으로 알린다.
+      // (게시일 이전 주는 어떤 작업물에도 속하지 않으므로 그대로 제외)
+      var afterAll = cands.every(function (m) { return m.replacedAt && r.since >= m.replacedAt; });
+      if (afterAll) {
+        unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign,
+          adgroup: r.adgroup, reason: '교체 후 새 작업물 등록 필요' };
+      }
+      return;
+    }
 
     var w = works[hit.workId] = works[hit.workId] || { workId: hit.workId, product: r.product, weeks: {} };
     var a = w.weeks[r.since] = w.weeks[r.since] || { imp: 0, clk: 0, cost: 0, conv: 0, convAmt: 0, rankSum: 0, rankImp: 0 };
@@ -281,20 +291,22 @@ function writeVerdictSheet_(ss, rows) {
 }
 
 /**
- * 매핑에 없는 소재를 매핑 탭 아래에 '작업물 ID 빈칸' 행으로 추가한다.
- * 디자이너가 작업물 ID만 채우면 된다. 이미 매핑 탭에 있는 소재 ID는 건너뛴다.
+ * 매핑이 필요한 소재를 매핑 탭 아래에 '작업물 ID 빈칸' 행으로 추가한다.
+ * 디자이너가 작업물 ID(와 게시일)만 채우면 된다. 이미 빈칸 행이 있는 소재는 건너뛴다.
  * @return {number} 추가한 행 수
  */
 function addUnmappedToMapping_(ss, unmapped) {
   if (!unmapped.length) return 0;
   var sheet = ss.getSheetByName(SHEETS.MAPPING);
-  var have = {};
+  var have = {}; // 이미 '작업물 ID 빈칸' 행이 있는 소재 (그런 행만 중복으로 본다)
   var last = sheet.getLastRow();
   if (last > 1) {
-    sheet.getRange(2, 2, last - 1, 1).getValues().forEach(function (r) { have[str_(r[0])] = true; });
+    sheet.getRange(2, 1, last - 1, 2).getValues().forEach(function (r) {
+      if (!str_(r[0])) have[str_(r[1])] = true;
+    });
   }
   var rows = unmapped.filter(function (u) { return !have[u.creativeId]; }).map(function (u) {
-    return ['', u.creativeId, u.product, '', '', '미매핑(자동 추가) | ' + u.campaign + ' / ' + u.adgroup];
+    return ['', u.creativeId, u.product, '', '', '미매핑(자동 추가) | ' + (u.reason ? u.reason + ' | ' : '') + u.campaign + ' / ' + u.adgroup];
   });
   if (rows.length) sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 6).setValues(rows);
   return rows.length;

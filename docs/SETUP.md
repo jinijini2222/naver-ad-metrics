@@ -1,7 +1,7 @@
 # 설치 방법
 
 1. 구글 시트를 만들고 **확장 프로그램 → Apps Script**를 연다.
-2. `src/` 의 `.gs` 파일 9개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Alert`, `Ai`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣는다.
+2. `src/` 의 `.gs` 파일 10개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Mapping`, `Alert`, `Ai`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣는다.
 3. 프로젝트 설정에서 **"appsscript.json 매니페스트 파일 표시"**를 켜고 `src/appsscript.json` 내용으로 바꾼다. (타임존 Asia/Seoul, 메일·외부 요청 권한 포함)
 4. 시트를 새로고침하면 **네이버 광고** 메뉴가 생긴다. 순서대로 실행한다.
 
@@ -12,6 +12,7 @@
 | 3. 연결 테스트 | 캠페인 목록을 로그에 출력 (1단계 완료 조건) | 예 |
 | 4. 지난주 수집 (수동) | 지난주 성과를 원본 탭에 기록 | 예 |
 | 5. 판정 실행 | 판정 탭 갱신, 미매핑 소재를 매핑 탭에 추가 | 아니오 |
+| 5-1. 매핑 점검 | 매핑 탭 입력 규칙 검사 결과를 팝업과 로그로 출력 ([MAPPING_RULES.md](MAPPING_RULES.md)) | 아니오 |
 | 6. 트리거 설치 | 월 09:00 수집, 10:30 판정, 11:00 알림 | 아니오 |
 | 7. 알림 미리보기 | 메일을 보내지 않고 내용만 로그에 출력 | 아니오 |
 | 8. 알림 발송 (수동) | 지난주 알림 메일 발송 | 아니오 |
@@ -20,7 +21,7 @@
 
 5. 설정 탭의 `알림 수신자`에 메일 주소를 쉼표로 입력한다. 처음 한 주는 본인만 넣고 검증한다.
 6. AI 개선안을 쓰려면 Apps Script 편집기에서 `setClaudeApiKey`를 실행해 Claude API 키를 입력하고, 설정 탭의 `AI 사용 여부`를 `TRUE`로 바꾼다.
-7. 매핑 탭: 판정 실행 후 미매핑 소재가 `작업물 ID` 빈칸으로 추가된다. 디자이너가 작업물 ID를 채운다. 썸네일을 교체하면 이전 행에 교체일을 적고 새 행(새 작업물 ID, 게시일)을 추가한다.
+7. 매핑 탭: 판정 실행 후 미매핑 소재가 `작업물 ID` 빈칸의 노란 행으로 추가된다. 디자이너가 작업물 ID와 게시일을 채운다. 입력 방법은 [MAPPING_RULES.md](MAPPING_RULES.md)를 따르고, 채운 뒤 `5-1. 매핑 점검`으로 확인한다.
 
 ## 키 없이 해 볼 순서 (실제 시트에서)
 
@@ -51,6 +52,7 @@ node tests/verdict.test.js
 node tests/collect.test.js
 node tests/alert.test.js
 node tests/ai.test.js
+node tests/mapping.test.js
 node tests/e2e.test.js   # 가짜 스프레드시트로 메뉴 흐름 전체 실행
 ```
 

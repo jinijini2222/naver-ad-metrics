@@ -96,6 +96,23 @@ console.log('OK 기준 전환율');
   console.log('OK 교체일 기준 작업물 ID 분리');
 }
 
+// ---- 교체 후 새 작업물을 등록하지 않으면 조용히 버리지 않고 미매핑으로 알린다 ----
+{
+  const r5 = [];
+  WEEKS.forEach((w) => r5.push(row(SH, 'Y', w, 10000, 200)));
+  const c = compute(r5, [map('OLD2', 'Y', { replacedAt: '2026-10-19' })]);
+  assert.deepStrictEqual(c.rows.filter((r) => r[0] === 'OLD2').map((r) => r[1]).sort(), ['2026-10-05', '2026-10-12']);
+  assert.strictEqual(c.unmapped.length, 1);
+  assert.strictEqual(c.unmapped[0].creativeId, 'Y');
+  assert.strictEqual(c.unmapped[0].reason, '교체 후 새 작업물 등록 필요');
+  assert.deepStrictEqual(c.mappingRate, { total: 1, unmapped: 1 });
+  // 게시일 이전 주는 미매핑이 아니라 그냥 제외
+  const p = compute(r5, [map('NEWW', 'Y', { postedAt: '2026-10-19' })]);
+  assert.deepStrictEqual(p.rows.map((r) => r[1]).sort(), ['2026-10-19', '2026-10-26']);
+  assert.strictEqual(p.unmapped.length, 0);
+  console.log('OK 교체 후 미등록은 미매핑으로 알림 / 게시 전 주는 제외');
+}
+
 // ---- 기준선 소재 수 부족: 판정은 하되 알림 끔 ----
 {
   const r4 = [], m4 = [];

@@ -7,6 +7,7 @@ function onOpen() {
     .addItem('3. 연결 테스트 (캠페인 목록)', 'testListCampaigns')
     .addItem('4. 지난주 수집 (수동)', 'collectLastWeekOnly')
     .addItem('5. 판정 실행', 'runVerdict')
+    .addItem('5-1. 매핑 점검 (입력 규칙 검사)', 'checkMapping')
     .addSeparator()
     .addItem('6. 트리거 설치 (월요일 자동 실행)', 'installTriggers')
     .addItem('7. 알림 미리보기 (발송 안 함)', 'previewAlert')
@@ -45,6 +46,10 @@ function setupSheets() {
     settings.getRange(settings.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
   }
   settings.autoResizeColumns(1, 3);
+
+  // 날짜 비교가 어긋나지 않도록 시트 시간대를 서울로 맞추고, 매핑 탭 입력 규칙을 적용
+  ss.setSpreadsheetTimeZone('Asia/Seoul');
+  applyMappingInputRules_(ss);
 
   // 스크립트만 쓰는 탭은 직접 편집 시 경고 (매핑·설정은 사람이 편집)
   [SHEETS.RAW, SHEETS.VERDICT, SHEETS.ALERT_LOG].forEach(function (name) {
