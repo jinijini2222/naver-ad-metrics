@@ -5,10 +5,14 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.log('SKIP playwright 없음'); process.exit(0); }
 const { load } = require('./helpers');
 
-const { call } = load(['Config.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Alert.gs', 'Ai.gs', 'Report.gs', 'Demo.gs']);
+const { call } = load(['Config.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Banner.gs', 'ItemReport.gs', 'Priority.gs', 'Alert.gs', 'Ai.gs', 'Report.gs', 'Demo.gs']);
 const demo = call('buildDemoData_(new Date())');
-const res = call('computeVerdicts_(parseRaw_(r), parseMapping_(m), parseSettings_([]))', { r: demo.rows, m: demo.mapping });
-const data = call('buildReportData_(parseVerdictRows_(v), parseMapping_(m), new Date())', { v: res.rows, m: demo.mapping.concat([['', 'demo-S6', '쇼핑검색', '', '', '미매핑(자동 추가) | 데모 캠페인 / 데모 그룹']]) });
+// 매핑 7번째 열(이미지 URL): 하나는 불러와지는 주소, 하나는 실패하는 주소, 하나는 http가 아닌 주소(차단)
+const IMG = { 'DEMO_S1': 'https://img.example/ok.png', 'DEMO_S2': 'https://img.example/bad.png', 'DEMO_S3': 'javascript:alert(1)' };
+const mappingRows = demo.mapping.map((m) => IMG[m[0]] ? m.concat([IMG[m[0]]]) : m).concat([['', 'demo-S6', '쇼핑검색', '', '', '미매핑(자동 추가) | 데모 캠페인 / 데모 그룹']]);
+const res = call('computeVerdicts_(parseRaw_(r), parseMapping_(m), parseSettings_([]))', { r: demo.rows, m: mappingRows });
+const data = call('buildReportData_(parseVerdictRows_(v), parseMapping_(m), new Date(), buildReportExtras_(parseRaw_(r), parseMapping_(m), parseVerdictRows_(v), parseSettings_([]), {}))',
+  { v: res.rows, m: mappingRows, r: demo.rows });
 
 (async () => {
   const shots = process.env.SHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'report-'));
@@ -17,8 +21,13 @@ const data = call('buildReportData_(parseVerdictRows_(v), parseMapping_(m), new 
   const page = await browser.newPage({ viewport: { width: 1060, height: 760 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // 일부러 실패시키는 이미지(bad.png)의 로드 실패 메시지만 제외하고 나머지 오류는 모두 잡는다
+  page.on('console', (m) => { if (m.type() === 'error' && !(m.location().url || '').includes('bad.png')) errors.push(m.text() + ' @ ' + m.location().url); });
   // Apps Script 의 google.script.run 흉내
+  // 이미지: ok.png 는 1x1 PNG 로 응답, bad.png 는 실패
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  await page.route('https://img.example/ok.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await page.route('https://img.example/bad.png', (r) => r.abort());
   await page.addInitScript((d) => {
     window.google = { script: { run: {
       withSuccessHandler(fn) { this._s = fn; return this; },
@@ -65,6 +74,67 @@ const data = call('buildReportData_(parseVerdictRows_(v), parseMapping_(m), new 
   console.log('OK 추이 그래프 (기준선 + 선택 작업물, 점별 수치)');
 
   await page.screenshot({ path: path.join(shots, '1-graph.png') });
+
+  // ---- 소재 표 탭 ----
+  assert.strictEqual(await page.isVisible('#pg-graph'), true); assert.strictEqual(await page.isVisible('#pg-items'), false);
+  await page.click('#vt-items');
+  assert.strictEqual(await page.isVisible('#pg-graph'), false); assert.strictEqual(await page.isVisible('#pg-items'), true);
+  const cards = await page.$$eval('#pg-items .kpi', (k) => k.map((x) => [x.querySelector('.l').textContent, x.querySelector('.n').textContent]));
+  const last = data.items.filter((i) => i.week === data.latestWeek);
+  const sum = (k) => last.reduce((a, i) => a + i[k], 0);
+  const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
+  assert.deepStrictEqual(cards.map((c) => c[1]).slice(0, 4), [fmt(sum('imp')), fmt(sum('clk')), (sum('clk') / sum('imp') * 100).toFixed(2) + '%', fmt(sum('conv'))]);
+  const trs = await page.$$eval('#pg-items tbody tr', (r) => r.map((x) => [x.cells[1].querySelector('b').textContent, x.cells[3].textContent, x.cells[6].textContent]));
+  assert.strictEqual(trs.length, 10);
+  assert.strictEqual(trs[0][0], 'DEMO_P1');                                  // 노출 많은 순 (10,000 동률은 ID 순)
+  const foot = await page.$$eval('#pg-items tfoot td', (c) => c.map((x) => x.textContent));
+  assert.strictEqual(foot[3], fmt(sum('imp'))); assert.strictEqual(foot[6], fmt(sum('conv')));
+  console.log('OK 소재 표: 합계 카드·표·합계 행이 데이터와 일치');
+  await page.selectOption('#itemSort', 'ctr');
+  assert.strictEqual(await page.$eval('#pg-items tbody tr td b', (b) => b.textContent), 'DEMO_S2');   // CTR 3% 최고
+  await page.selectOption('#product', '파워링크 확장소재');
+  assert.strictEqual((await page.$$('#pg-items tbody tr')).length, 5);
+  await page.selectOption('#product', '전체');
+  // 이미지: 성공 1, 실패 → 대체 표시, 차단된 주소 → 대체 표시
+  await page.waitForFunction(() => document.querySelectorAll('#pg-items img.thumb').length >= 0);
+  await page.waitForTimeout(300);
+  const okImgs = await page.$$eval('#pg-items img.thumb', (i) => i.map((x) => [x.alt, x.naturalWidth]));
+  assert.deepStrictEqual(okImgs, [['DEMO_S1', 1]]);                           // ok.png 만 남음
+  const ph = await page.$$eval('#pg-items .thumb.ph', (p) => p.length);
+  assert.strictEqual(ph, 9, '이미지가 없거나 실패하거나 http가 아닌 9개는 대체 표시');
+  assert.ok(!(await page.$('#pg-items img[src^="javascript"]')), 'javascript: 주소는 이미지로 쓰지 않음');
+  console.log('OK 소재 표: 정렬·필터·이미지(성공/실패/차단)');
+  await page.screenshot({ path: path.join(shots, '3-items.png') });
+
+  // ---- 디자인 우선순위 탭 ----
+  assert.strictEqual(await page.textContent('#prioCount'), '2');
+  await page.click('#vt-prio');
+  const crit = await page.textContent('#pg-prio > p');
+  assert.ok(crit.includes('광고비 비중 ≥ 10.0%') && crit.includes('클릭 ≥ 100') && crit.includes('전환율 ≤ 0.50%') && crit.includes('50% 이상 감소'), crit);
+  const a = await page.$$eval('#pg-prio .card:nth-child(1) tbody tr', (r) => r.map((x) => [x.cells[0].textContent, x.cells[4].textContent, x.cells[5].textContent]));
+  assert.deepStrictEqual(a, [['데모 캠페인 B', '0.00%', 'DEMO_S5, demo-S6']]);
+  const b = await page.$$eval('#pg-prio .card:nth-child(2) tbody tr', (r) => r.map((x) => [x.cells[0].textContent, x.cells[1].textContent, x.cells[2].textContent, x.cells[3].textContent]));
+  assert.deepStrictEqual(b, [['데모 캠페인 C', '10,000', '500', '-95%']]);
+  await page.selectOption('#product', '파워링크 확장소재');
+  assert.strictEqual((await page.$$('#pg-prio tbody tr')).length, 0, '상품 필터: 파워링크에는 해당 없음');
+  assert.strictEqual(await page.textContent('#prioCount'), '');
+  await page.selectOption('#product', '전체');
+  // 최신 주: 전주에도 걸렸으므로 A 는 '지속'. B(노출 급감)는 이번 주에만 처음 걸림
+  assert.strictEqual(await page.$eval('#pg-prio .card:nth-child(1) tbody tr', (r) => r.cells[6].textContent), '지속');
+  assert.strictEqual(await page.$eval('#pg-prio .card:nth-child(2) tbody tr', (r) => r.cells[5].textContent), '');
+  const weeksDesc = await page.$$eval('#week option', (o) => o.map((x) => x.value));
+  await page.selectOption('#week', weeksDesc[1]);      // 한 주 전: A 는 매주 걸림(지속), B 는 없음
+  assert.strictEqual((await page.$$('#pg-prio .card:nth-child(1) tbody tr')).length, 1);
+  assert.strictEqual((await page.$$('#pg-prio .card:nth-child(2) tbody tr')).length, 0, '이전 주에는 노출 급감 없음');
+  await page.selectOption('#week', weeksDesc[weeksDesc.length - 1]);   // 가장 오래된 주: 비교할 전주가 없어 '지속' 아님
+  assert.strictEqual(await page.$eval('#pg-prio .card:nth-child(1) tbody tr', (r) => r.cells[6].textContent), '');
+  await page.selectOption('#week', data.latestWeek);
+  console.log('OK 디자인 우선순위: 기준 문구·A·B·상품/주차 필터·탭 배지');
+  await page.screenshot({ path: path.join(shots, '4-priority.png') });
+  // 키보드: 방향키로 화면 탭 이동
+  await page.focus('#vt-prio'); await page.keyboard.press('ArrowLeft');
+  assert.strictEqual(await page.getAttribute('#vt-items', 'aria-selected'), 'true');
+  await page.click('#vt-graph');
 
   // 일반 보고서 서브 창
   assert.strictEqual(await page.isVisible('#sub'), false, '처음에는 서브 창이 닫혀 있음');

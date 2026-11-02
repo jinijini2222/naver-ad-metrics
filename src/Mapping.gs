@@ -37,6 +37,9 @@ function validateMapping_(mapping) {
     if (m.product && judged.indexOf(m.product) < 0) {
       add('경고', m.row, "광고 상품 '" + m.product + "'은 목록(" + judged.join(' / ') + ')에 없습니다.');
     }
+    if (m.imageUrl && !/^https?:\/\/\S+$/i.test(m.imageUrl)) {
+      add('경고', m.row, "이미지 URL이 http(s):// 로 시작하는 주소가 아닙니다. 소재 주간 리포트의 이미지가 표시되지 않습니다.");
+    }
     if (m.product === PRODUCT.POWERLINK_TEXT && m.workId) {
       add('경고', m.row, '파워링크 텍스트 소재는 판정에서 제외됩니다. 매핑할 필요가 없습니다.');
     }
@@ -135,6 +138,8 @@ function applyMappingInputRules_(ss) {
 
   sheet.getRange(1, 1).setNote('디자인 작업물의 고유 ID. 공백 없이. 예: SH_1019_A\n썸네일을 바꾸면 새 ID(…_B)로 새 행을 추가합니다.');
   sheet.getRange(1, 2).setNote('네이버 광고 소재 ID (nad-…). 소재를 새로 게시하면 자동으로 빈 작업물 ID 행이 추가됩니다.');
+  sheet.getRange(1, 7).setNote('소재 주간 리포트에 보일 이미지 주소(https://…). 구글 드라이브 보기 링크는 이미지로 표시되지 않을 수 있어 직접 이미지 주소를 쓰세요.');
+  sheet.getRange(1, 8).setNote('가로x세로 (예: 750x280). 규격 점검(예정)에 쓰입니다.');
   sheet.getRange(1, 4).setNote('이 작업물이 광고에 나가기 시작한 월요일. 비우면 처음부터.');
   sheet.getRange(1, 5).setNote('이 작업물을 다른 것으로 교체한 월요일 (그 주부터 새 작업물). 교체 전에는 비워 둡니다.\n새 작업물의 게시일과 같은 날짜로 적습니다.');
 

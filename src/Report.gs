@@ -20,10 +20,24 @@ function showReport() {
 /** 화면(google.script.run)이 호출하는 데이터 */
 function getReportData() {
   var ss = SpreadsheetApp.getActive();
-  return buildReportData_(
-    parseVerdictRows_(readSheetRows_(ss, SHEETS.VERDICT)),
-    parseMapping_(readSheetRows_(ss, SHEETS.MAPPING)),
-    new Date());
+  var verdicts = parseVerdictRows_(readSheetRows_(ss, SHEETS.VERDICT));
+  var mapping = parseMapping_(readSheetRows_(ss, SHEETS.MAPPING));
+  var raw = parseRaw_(readSheetRows_(ss, SHEETS.RAW));
+  var settings = parseSettings_(readSheetRows_(ss, SHEETS.SETTINGS));
+  return buildReportData_(verdicts, mapping, new Date(), buildReportExtras_(raw, mapping, verdicts, settings, getBannerNames_(ss)));
+}
+
+/** 소재 표(7-1)와 디자인 우선순위(7-2) 데이터. 우선순위는 원본 탭에 있는 모든 주에 대해 계산한다. */
+function buildReportExtras_(raw, mapping, verdicts, settings, names) {
+  var weekSet = {};
+  raw.forEach(function (r) { weekSet[r.since] = true; });
+  var priority = {};
+  Object.keys(weekSet).sort().forEach(function (w) { priority[w] = evaluatePriority_(raw, mapping, w, settings); });
+  return {
+    items: buildItemRows_(computeWorkWeekStats_(raw, mapping), verdicts, mapping, names),
+    priority: priority,
+    settings: { share: settings.prioShare, minClicks: settings.prioMinClicks, cvr: settings.prioCvr, drop: settings.dropRate, minImp: settings.minImpressions }
+  };
 }
 
 function nz_(v) { return (typeof v === 'number' && isFinite(v)) ? v : null; }
@@ -32,9 +46,11 @@ function nz_(v) { return (typeof v === 'number' && isFinite(v)) ? v : null; }
  * 판정 탭·매핑 탭 → 화면용 JSON. 순수 함수.
  * 비어 있는 숫자는 null 로 바꾼다(JSON·화면에서 구분하기 쉽게).
  */
-function buildReportData_(verdicts, mapping, now) {
+function buildReportData_(verdicts, mapping, now, extras) {
+  extras = extras || { items: [], priority: {}, settings: null };
   var weekSet = {};
   verdicts.forEach(function (v) { if (v.week) weekSet[v.week] = true; });
+  extras.items.forEach(function (i) { if (i.week) weekSet[i.week] = true; });
   var weeks = Object.keys(weekSet).sort();
   var labels = {};
   weeks.forEach(function (w) { labels[w] = md_(w) + '~' + md_(addDays_(w, 6)); });
@@ -53,6 +69,9 @@ function buildReportData_(verdicts, mapping, now) {
         diagnosis: v.alertType ? diagnose_(v) : ''
       };
     }),
+    items: extras.items,
+    priority: extras.priority,
+    settings: extras.settings,
     unmapped: mapping.filter(function (m) { return !m.workId && m.creativeId; }).map(function (m) {
       return { creativeId: m.creativeId, product: m.product, memo: m.memo };
     })

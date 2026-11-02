@@ -1,7 +1,7 @@
 // 실행: node tests/report.test.js  (보고서 화면용 데이터 구성)
 const assert = require('assert');
 const { load } = require('./helpers');
-const { call } = load(['Config.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Alert.gs', 'Ai.gs', 'Report.gs']);
+const { call } = load(['Config.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Banner.gs', 'ItemReport.gs', 'Priority.gs', 'Alert.gs', 'Ai.gs', 'Report.gs']);
 
 const row = (id, week, o = {}) => [id, week, o.ctr ?? 0.01, 0.02, o.ratio ?? 0.5, o.verdict ?? '개선 필요', 0.05, 120, 3.2, o.rank ?? '',
   'a → b → c', '쇼핑검색', o.alert ?? '개선 필요', '', 0.03];

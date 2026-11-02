@@ -9,8 +9,9 @@ var DEMO = { CREATIVE_PREFIX: 'demo-', WORK_PREFIX: 'DEMO_', MEMO: '데모 데�
 
 /**
  * 최근 4주(지난주까지) 가짜 성과.
- * 기대 결과: 개선 필요(S1), 소재 피로(S3), 순위 영향 + 개선 필요(P1) = 알림 3건,
+ * 기대 결과: 개선 필요(S1), 소재 피로(S3), 순위 영향 + 개선 필요(P1) = 소재 알림 3건,
  * 성공(S2), 데이터 부족(S4), 미매핑(S6), 텍스트 소재(T1)는 판정 제외.
+ * 디자인 우선순위: A = 데모 캠페인 B (광고비 비중 큼, 전환 없음), B = 데모 캠페인 C (노출 급감).
  */
 function buildDemoData_(now) {
   var weeks = [4, 3, 2, 1].map(function (n) { return getWeekRange_(now, n); }); // 오래된 주부터
@@ -20,9 +21,9 @@ function buildDemoData_(now) {
     { id: 'S1', product: PRODUCT.SHOPPING, mapped: true, ctr: [0.02, 0.02, 0.02, 0.01] },            // 개선 필요
     { id: 'S2', product: PRODUCT.SHOPPING, mapped: true, ctr: [0.02, 0.02, 0.02, 0.03] },            // 성공
     { id: 'S3', product: PRODUCT.SHOPPING, mapped: true, ctr: [0.02, 0.024, 0.022, 0.018] },         // 소재 피로
-    { id: 'S4', product: PRODUCT.SHOPPING, mapped: true, ctr: [0.02, 0.02, 0.02, 0.01], imp: [10000, 10000, 10000, 500] }, // 데이터 부족
-    { id: 'S5', product: PRODUCT.SHOPPING, mapped: true, ctr: flat },                                // 보통
-    { id: 'S6', product: PRODUCT.SHOPPING, mapped: false, ctr: flat },                               // 미매핑
+    { id: 'S4', product: PRODUCT.SHOPPING, mapped: true, ctr: [0.02, 0.02, 0.02, 0.01], imp: [10000, 10000, 10000, 500], campaign: '데모 캠페인 C' }, // 데이터 부족 + 노출 급감
+    { id: 'S5', product: PRODUCT.SHOPPING, mapped: true, ctr: flat, cvr: 0, campaign: '데모 캠페인 B' },  // 보통, 전환 없음
+    { id: 'S6', product: PRODUCT.SHOPPING, mapped: false, ctr: flat, cvr: 0, campaign: '데모 캠페인 B' }, // 미매핑, 전환 없음
     { id: 'P1', product: PRODUCT.POWERLINK_IMAGE, mapped: true, ctr: [0.02, 0.02, 0.02, 0.01], rank: [2, 2, 2, 5] }, // 순위 영향
     { id: 'P2', product: PRODUCT.POWERLINK_IMAGE, mapped: true, ctr: flat, rank: [2, 2, 2, 2] },
     { id: 'P3', product: PRODUCT.POWERLINK_IMAGE, mapped: true, ctr: flat, rank: [2, 2, 2, 2] },
@@ -36,8 +37,8 @@ function buildDemoData_(now) {
     weeks.forEach(function (w, i) {
       var imp = d.imp ? d.imp[i] : 10000;
       var clk = Math.round(imp * d.ctr[i]);
-      var conv = Math.round(clk * 0.04);
-      rows.push([collectedAt, w.since, w.until, d.product, '데모 캠페인', '데모 그룹', DEMO.CREATIVE_PREFIX + d.id,
+      var conv = Math.round(clk * (d.cvr != null ? d.cvr : 0.04));
+      rows.push([collectedAt, w.since, w.until, d.product, d.campaign || '데모 캠페인 A', '데모 그룹', DEMO.CREATIVE_PREFIX + d.id,
         imp, clk, clk * 120, conv, conv * 30000, d.rank ? d.rank[i] : 0]);
     });
     if (d.mapped) mapping.push([DEMO.WORK_PREFIX + d.id, DEMO.CREATIVE_PREFIX + d.id, d.product, '', '', DEMO.MEMO]);

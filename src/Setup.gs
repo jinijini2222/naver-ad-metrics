@@ -46,7 +46,14 @@ function setupSheets() {
   if (missing.length) {
     settings.getRange(settings.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
   }
+  // 비율 설정은 % 서식으로 보여 준다 (0.2 → 20.0%). 20 이나 0.5% 처럼 입력해도 읽힌다
+  if (settings.getLastRow() > 1) {
+    settings.getRange(2, 1, settings.getLastRow() - 1, 1).getValues().forEach(function (k, i) {
+      if (RATE_SETTING_KEYS.indexOf(String(k[0]).trim()) >= 0) settings.getRange(i + 2, 2).setNumberFormat('0.0%');
+    });
+  }
   settings.autoResizeColumns(1, 3);
+  ensureHeaderColumns_(ss.getSheetByName(SHEETS.MAPPING), HEADERS[SHEETS.MAPPING]); // 예전 시트에 새 열 머리글 추가
 
   // 날짜 비교가 어긋나지 않도록 시트 시간대를 서울로 맞추고, 매핑 탭 입력 규칙을 적용
   ss.setSpreadsheetTimeZone('Asia/Seoul');
@@ -54,7 +61,7 @@ function setupSheets() {
   applyBannerSheetRules_(ss);
 
   // 스크립트만 쓰는 탭은 직접 편집 시 경고 (매핑·설정은 사람이 편집)
-  [SHEETS.RAW, SHEETS.VERDICT, SHEETS.ALERT_LOG].forEach(function (name) {
+  [SHEETS.RAW, SHEETS.VERDICT, SHEETS.ALERT_LOG, SHEETS.ITEM_REPORT].forEach(function (name) {
     protectWithWarning_(ss.getSheetByName(name));
   });
 
@@ -63,6 +70,15 @@ function setupSheets() {
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
 
   SpreadsheetApp.getActive().toast('시트 초기화 완료', '네이버 광고', 5);
+}
+
+/** 머리글이 짧은 예전 시트에 새 열 머리글만 추가한다 (기존 데이터는 그대로). */
+function ensureHeaderColumns_(sheet, headers) {
+  if (!sheet || sheet.getLastRow() < 1) return;
+  var cur = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  headers.forEach(function (h, i) {
+    if (!cur[i]) sheet.getRange(1, i + 1).setValue(h).setFontWeight('bold');
+  });
 }
 
 function getOrCreateSheet_(ss, name) {

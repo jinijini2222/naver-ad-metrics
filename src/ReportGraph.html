@@ -43,6 +43,21 @@
   .mini th { background:var(--panel); font-weight:600; }
   .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--muted); margin-top:6px; }
   .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .tabs { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+  .tab { font:inherit; padding:7px 12px; border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; background:none; color:var(--muted); cursor:pointer; }
+  .tab[aria-selected="true"] { color:var(--ink); font-weight:700; background:#fff; border-color:var(--line); margin-bottom:-1px; border-bottom:1px solid #fff; }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .cnt { display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px; background:var(--bad); color:#fff; font-size:11px; line-height:18px; text-align:center; }
+  .cnt:empty { display:none; }
+  .thumb { width:44px; height:44px; border-radius:6px; object-fit:cover; display:block; background:#eef2f7; }
+  .thumb.ph { display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); }
+  .tbl { overflow:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; }
+  .tbl table { width:100%; border-collapse:collapse; font-size:12px; }
+  .tbl th, .tbl td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:middle; }
+  .tbl th { background:var(--panel); font-weight:600; white-space:nowrap; position:sticky; top:0; }
+  .tbl td.r, .tbl th.r { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .tbl tfoot td { font-weight:700; background:var(--panel); }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
   .empty { padding:30px; text-align:center; color:var(--muted); }
   /* 서브 창 (일반 보고서) */
   .scrim { position:fixed; inset:0; background:rgba(15,23,42,.35); display:none; z-index:10; }
@@ -61,9 +76,10 @@
   .rep th, .rep td { border:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
   .rep th { background:var(--panel); font-weight:600; white-space:nowrap; }
   .rep td.r { text-align:right; white-space:nowrap; }
+  .rep th.r { text-align:right; }
   .rep p { margin:4px 0; }
-  .tag { display:inline-block; padding:0 6px; border-radius:9px; font-size:11px; color:#fff; }
-  @media (max-width: 760px) { .kpis { grid-template-columns:repeat(3, minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
+  .tag { display:inline-block; padding:0 6px; border-radius:9px; font-size:11px; color:#fff; white-space:nowrap; }
+  @media (max-width: 760px) { .two { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(3, minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -82,6 +98,12 @@
 
 <div id="err" class="empty" style="display:none"></div>
 <div id="main" style="display:none">
+  <div class="tabs" role="tablist" aria-label="보고서 화면" id="viewTabs">
+    <button class="tab" role="tab" id="vt-graph" aria-controls="pg-graph" aria-selected="true" type="button">그래프</button>
+    <button class="tab" role="tab" id="vt-items" aria-controls="pg-items" aria-selected="false" tabindex="-1" type="button">소재 표</button>
+    <button class="tab" role="tab" id="vt-prio" aria-controls="pg-prio" aria-selected="false" tabindex="-1" type="button">디자인 우선순위<span class="cnt" id="prioCount"></span></button>
+  </div>
+  <div id="pg-graph" role="tabpanel" aria-labelledby="vt-graph">
   <div class="kpis" id="kpis"></div>
   <div class="grid">
     <section class="card" aria-labelledby="h-dist">
@@ -100,6 +122,9 @@
       <div class="legend" id="worksLegend"></div>
     </section>
   </div>
+  </div>
+  <div id="pg-items" role="tabpanel" aria-labelledby="vt-items" hidden></div>
+  <div id="pg-prio" role="tabpanel" aria-labelledby="vt-prio" hidden></div>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -111,7 +136,7 @@
 <script>
 (function () {
   var DATA = null;
-  var state = { week: '', product: '전체', work: '' };
+  var state = { week: '', product: '전체', work: '', view: 'graph', sort: 'imp' };
   var ORDER = ['성공', '보통', '개선 필요', '데이터 부족'];
   var HEX = { '성공': '#2e7d32', '보통': '#5f6b7a', '개선 필요': '#c62828', '데이터 부족': '#b0b7c3' };
   var BASE_COLORS = ['#7c8aa0', '#b08900', '#7a5ea8'];
@@ -167,7 +192,7 @@
   function renderAll() {
     var rows = rowsOf(state.week, state.product);
     $('meta').textContent = weekText(state.week) + ' · 판정 대상 ' + rows.length + '건 · 생성 ' + DATA.generatedAt;
-    renderKpis(rows); renderDist(rows); renderWorks(rows); renderTrend();
+    renderKpis(rows); renderDist(rows); renderWorks(rows); renderTrend(); renderItems(); renderPrio();
   }
 
   function renderKpis(rows) {
@@ -286,13 +311,101 @@
     tbl.appendChild(el('table', { 'class': 'mini' }, [el('thead', {}, [head]), el('tbody', {}, body)]));
   }
 
+  // ---------- 소재 표 (7-1) ----------
+  function inItems(r) { return r.week === state.week && (state.product === '전체' || r.product === state.product); }
+  function thumb(r) {
+    var ph = el('div', { 'class': 'thumb ph', title: '이미지 없음', text: '없음' });
+    if (!(r.imageUrl && /^https?:\/\/\S+$/i.test(r.imageUrl))) return ph;   // http(s) 주소만 이미지로 불러온다
+    var img = new Image();
+    img.className = 'thumb'; img.alt = r.workId; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', function () { if (img.parentNode) img.parentNode.replaceChild(ph, img); });
+    img.src = r.imageUrl;
+    return img;
+  }
+  function renderItems() {
+    var box = $('pg-items'); clear(box);
+    var rows = (DATA.items || []).filter(inItems);
+    if (!rows.length) { box.appendChild(el('div', { 'class': 'empty', text: '이 주차에는 표시할 소재가 없습니다.' })); return; }
+    var T = { imp: 0, clk: 0, conv: 0, cost: 0 };
+    rows.forEach(function (r) { T.imp += r.imp; T.clk += r.clk; T.conv += r.conv; T.cost += r.cost; });
+    var key = { imp: function (r) { return r.imp; }, ctr: function (r) { return r.ctr == null ? -1 : r.ctr; }, conv: function (r) { return r.conv; }, cost: function (r) { return r.cost; } }[state.sort];
+    rows = rows.slice().sort(function (a, b) { return key(b) - key(a) || (a.workId < b.workId ? -1 : 1); });
+
+    var sel = el('select', { id: 'itemSort' });
+    [['imp', '노출 많은 순'], ['ctr', 'CTR 높은 순'], ['conv', '전환 많은 순'], ['cost', '광고비 많은 순']].forEach(function (o) {
+      var op = el('option', { value: o[0], text: o[1] }); if (o[0] === state.sort) op.selected = true; sel.appendChild(op);
+    });
+    sel.addEventListener('change', function () { state.sort = sel.value; renderItems(); });
+    box.appendChild(el('div', { 'class': 'controls', style: 'margin-bottom:10px' }, [el('label', { 'class': 'f' }, ['정렬', sel]),
+      el('span', { 'class': 'muted', text: weekText(state.week) + ' · 전환은 총 전환수 기준' })]));
+    box.appendChild(el('div', { 'class': 'kpis' }, [['노출수', num(T.imp)], ['클릭수', num(T.clk)], ['CTR', T.imp ? pct(T.clk / T.imp) : '-'],
+      ['전환수', num(T.conv)], ['전환율', T.clk ? pct(T.conv / T.clk) : '-'], ['광고비', won(T.cost)]].map(function (k) {
+      return el('div', { 'class': 'kpi' }, [el('div', { 'class': 'n', style: 'font-size:18px', text: k[1] }), el('div', { 'class': 'l', text: k[0] })]);
+    })));
+    var t = table(['이미지', '작업물', '광고 상품', '노출수', '클릭수', 'CTR', '전환수', '전환율', '광고비', 'CPC', '판정', '알림'], rows.map(function (r) {
+      var name = el('div', {}, [el('b', { text: r.workId })].concat(r.name ? [el('div', { 'class': 'muted', text: r.name })] : []));
+      return [thumb(r), name, r.product, num(r.imp), num(r.clk), pct(r.ctr), num(r.conv), pct(r.cvr), won(r.cost), won(r.cpc),
+        r.verdict ? tag(r.verdict, VC[r.verdict] || '#8c95a3') : '', r.alertType];
+    }), [3, 4, 5, 6, 7, 8, 9]);
+    var foot = el('tr'); ['합계', '', '', num(T.imp), num(T.clk), T.imp ? pct(T.clk / T.imp) : '-', num(T.conv), T.clk ? pct(T.conv / T.clk) : '-', won(T.cost),
+      T.clk ? won(T.cost / T.clk) : '-', '', ''].forEach(function (c, i) { foot.appendChild(el('td', { 'class': [3, 4, 5, 6, 7, 8, 9].indexOf(i) >= 0 ? 'r' : '', text: c })); });
+    t.appendChild(el('tfoot', {}, [foot]));
+    box.appendChild(el('div', { 'class': 'tbl' }, [t]));
+    box.appendChild(el('p', { 'class': 'muted', text: '이미지는 매핑 탭의 이미지 URL에서 가져옵니다. 판정은 같은 광고 상품 합산 CTR(기준선) 대비입니다.' }));
+  }
+  function num(x) { return x == null ? '-' : Math.round(x).toLocaleString('ko-KR'); }
+
+  // ---------- 디자인 우선순위 (7-2) ----------
+  function renderPrio() {
+    var box = $('pg-prio'); clear(box);
+    var P = (DATA.priority && DATA.priority[state.week]) || { A: [], B: [] };
+    function keep(list) { return list.filter(function (i) { return state.product === '전체' || (i.products || []).indexOf(state.product) >= 0; }); }
+    var A = keep(P.A), B = keep(P.B), cfg = DATA.settings;
+    $('prioCount').textContent = A.length + B.length ? String(A.length + B.length) : '';
+    if (cfg) {
+      box.appendChild(el('p', { 'class': 'muted', text: '기준(설정 탭): A 광고비 비중 ≥ ' + pct1(cfg.share) + ' · 클릭 ≥ ' + num(cfg.minClicks) + ' · 전환율 ≤ ' + pct(cfg.cvr) +
+        '   /   B 전주 노출 ≥ ' + num(cfg.minImp) + ' 이고 노출이 전주 대비 ' + Math.round(cfg.drop * 100) + '% 이상 감소' }));
+    }
+    function works(i) { return (i.topWorks || []).map(function (w) { return w.label; }).join(', ') || '-'; }
+    function status(i) { return i.persist ? tag('지속', '#9a6700') : ''; }
+    var boxA = el('section', { 'class': 'card' }, [el('h2', { text: 'A. 비용은 큰데 전환율이 낮은 캠페인 (' + A.length + '건)' })]);
+    boxA.appendChild(A.length ? el('div', { 'class': 'tbl' }, [table(['캠페인', '광고비 (비중)', '클릭', '전환', '전환율', '광고비 상위 소재', ''], A.map(function (i) {
+      return [i.campaign, won(i.cost) + ' (' + Math.round(i.share * 100) + '%)', num(i.clk), num(i.conv), pct(i.cvr), works(i), status(i)];
+    }), [1, 2, 3, 4])]) : el('p', { 'class': 'muted', text: '해당 캠페인이 없습니다.' }));
+    boxA.appendChild(el('p', { 'class': 'muted', text: '소재 교체·제작 후보입니다. 전환율이 낮은 원인이 상세페이지·가격일 수도 있어 함께 확인하세요.' }));
+    var boxB = el('section', { 'class': 'card' }, [el('h2', { text: 'B. 노출이 전주 대비 크게 줄어든 캠페인 (' + B.length + '건)' })]);
+    boxB.appendChild(B.length ? el('div', { 'class': 'tbl' }, [table(['캠페인', '전주 노출', '이번 주 노출', '변화', '전주 광고비 상위 소재', ''], B.map(function (i) {
+      return [i.campaign, num(i.prevImp), num(i.imp), '-' + Math.round(i.drop * 100) + '%', works(i), status(i)];
+    }), [1, 2, 3])]) : el('p', { 'class': 'muted', text: '해당 캠페인이 없습니다.' }));
+    boxB.appendChild(el('p', { 'class': 'muted', text: '입찰·예산·심사 상태를 먼저 확인하세요. 디자인 문제가 아닐 수 있습니다.' }));
+    box.appendChild(el('div', { 'class': 'two' }, [boxA, boxB]));
+  }
+
+  // ---------- 화면 탭 ----------
+  var VIEWS = ['graph', 'items', 'prio'];
+  function showView(v) {
+    state.view = v;
+    VIEWS.forEach(function (n) {
+      var b = $('vt-' + n); b.setAttribute('aria-selected', n === v ? 'true' : 'false'); b.tabIndex = n === v ? 0 : -1;
+      $('pg-' + n).hidden = n !== v;
+    });
+  }
+  VIEWS.forEach(function (n, i) {
+    var b = $('vt-' + n);
+    b.addEventListener('click', function () { showView(n); });
+    b.addEventListener('keydown', function (e) {
+      var k = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (k) { e.preventDefault(); var m = VIEWS[(i + k + VIEWS.length) % VIEWS.length]; showView(m); $('vt-' + m).focus(); }
+    });
+  });
+
   // ---------- 일반 보고서 (서브 창) ----------
   function tag(text, color) { return el('span', { 'class': 'tag', text: text, style: 'background:' + color }); }
   var VC = HEX;
 
   function table(head, body, rightCols) {
     var t = el('table'), tr = el('tr');
-    head.forEach(function (h) { tr.appendChild(el('th', { text: h })); });
+    head.forEach(function (h, i) { tr.appendChild(el('th', { 'class': rightCols && rightCols.indexOf(i) >= 0 ? 'r' : '', text: h })); });
     t.appendChild(el('thead', {}, [tr]));
     var tb = el('tbody');
     body.forEach(function (r) {

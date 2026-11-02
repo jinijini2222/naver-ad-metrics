@@ -26,6 +26,11 @@ function runVerdict() {
   } catch (e) {
     Logger.log('성과기록_배너 동기화 실패: ' + e);
   }
+  try {
+    syncItemReportSheet_(ss, raw, mapping, res.rows); // 소재_주간리포트 탭 갱신
+  } catch (e) {
+    Logger.log('소재_주간리포트 동기화 실패: ' + e);
+  }
   var added = addUnmappedToMapping_(ss, res.unmapped);
 
   Logger.log('판정 ' + res.rows.length + '행, 미매핑 신규 ' + added + '개, 최신 주 매핑률 ' +
@@ -72,7 +77,8 @@ function parseMapping_(rows) {
     out.push({
       row: i + 2, // 시트 행 번호 (헤더 다음이 2행)
       workId: workId, creativeId: creativeId, product: str_(r[2]),
-      postedAt: dateOrEmpty_(r[3]), replacedAt: dateOrEmpty_(r[4]), memo: str_(r[5])
+      postedAt: dateOrEmpty_(r[3]), replacedAt: dateOrEmpty_(r[4]), memo: str_(r[5]),
+      imageUrl: str_(r[6]), spec: str_(r[7])
     });
   });
   return out;
@@ -91,6 +97,8 @@ function parseSettings_(rows) {
     return isFinite(x) ? x : def;
   }
   function rate(key, def) { var x = n(key, def); return x > 1 ? x / 100 : x; }
+  // 전환율 기준: 0.5 를 입력해도 0.5%로 본다 (전환율 기준이 10% 이상일 일은 없으므로 0.1 이상은 % 값으로 해석)
+  function cvrRate(key, def) { var x = n(key, def); return x >= 0.1 ? x / 100 : x; }
   var ai = map['AI 사용 여부'];
   return {
     successRate: rate('성공 기준', 0.2),
@@ -101,6 +109,10 @@ function parseSettings_(rows) {
     fatigueWeeks: Math.max(2, Math.round(n('피로 주수', 3))),
     fatigueDrop: rate('피로 하락률', 0.2),
     minCreatives: n('알림 최소 소재 수', 5),
+    prioShare: rate('우선순위 광고비 비중', 0.1),
+    prioMinClicks: n('우선순위 최소 클릭', 100),
+    prioCvr: cvrRate('우선순위 전환율 기준', 0.005),
+    dropRate: rate('노출 감소 기준', 0.5),
     recipients: str_(map['알림 수신자']),
     aiEnabled: ai === true || String(ai).toUpperCase() === 'TRUE'
   };
@@ -115,6 +127,55 @@ function addDays_(dateString, days) {
 
 function pct_(x) { return (x * 100).toFixed(2) + '%'; }
 
+// ---------- 소재 → 작업물 배정 (판정·소재 리포트·우선순위가 공유) ----------
+
+/** 소재 ID → 작업물 ID가 있는 매핑 행들 */
+function indexMapping_(mapping) {
+  var idx = {};
+  mapping.forEach(function (m) {
+    if (m.creativeId && m.workId) (idx[m.creativeId] = idx[m.creativeId] || []).push(m);
+  });
+  return idx;
+}
+
+/**
+ * 소재 ID의 한 주(주 시작일 since)가 어느 작업물의 성과인지.
+ * @return {{hit: Object|null, reason: string}} reason: 'none'(매핑 없음) | 'after'(교체 후 새 작업물 미등록) | 'before'(게시 전)
+ */
+function resolveWork_(idx, creativeId, since) {
+  var cands = idx[creativeId] || [];
+  if (!cands.length) return { hit: null, reason: 'none' };
+  var hit = cands.filter(function (m) {
+    return (!m.postedAt || since >= m.postedAt) && (!m.replacedAt || since < m.replacedAt);
+  })[0];
+  if (hit) return { hit: hit, reason: '' };
+  var afterAll = cands.every(function (m) { return m.replacedAt && since >= m.replacedAt; });
+  return { hit: null, reason: afterAll ? 'after' : 'before' };
+}
+
+/**
+ * 소재 행을 작업물×주로 합산한다. 매핑이 없거나 교체 후 새 작업물이 없는 소재는 unmappedMap에 모은다.
+ * (게시일 이전 주는 어떤 작업물에도 속하지 않아 그대로 제외)
+ */
+function groupByWork_(rows, mapping) {
+  var idx = indexMapping_(mapping), works = {}, unmappedMap = {};
+  rows.forEach(function (r) {
+    var res = resolveWork_(idx, r.creativeId, r.since);
+    if (!res.hit) {
+      if (res.reason === 'none' || res.reason === 'after') {
+        unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign, adgroup: r.adgroup,
+          reason: res.reason === 'after' ? '교체 후 새 작업물 등록 필요' : '' };
+      }
+      return;
+    }
+    var w = works[res.hit.workId] = works[res.hit.workId] || { workId: res.hit.workId, product: r.product, weeks: {} };
+    var a = w.weeks[r.since] = w.weeks[r.since] || { imp: 0, clk: 0, cost: 0, conv: 0, convAmt: 0, rankSum: 0, rankImp: 0 };
+    a.imp += r.imp; a.clk += r.clk; a.cost += r.cost; a.conv += r.conv; a.convAmt += r.convAmt;
+    if (r.rank > 0 && r.imp > 0) { a.rankSum += r.rank * r.imp; a.rankImp += r.imp; }
+  });
+  return { works: works, unmappedMap: unmappedMap };
+}
+
 /**
  * @param {Array} raw parseRaw_ 결과
  * @param {Array} mapping parseMapping_ 결과
@@ -124,40 +185,10 @@ function pct_(x) { return (x * 100).toFixed(2) + '%'; }
 function computeVerdicts_(raw, mapping, s) {
   var judged = raw.filter(function (r) { return JUDGED_PRODUCTS.indexOf(r.product) >= 0; });
 
-  // 소재 ID → 작업물 ID가 있는 매핑 행들
-  var mapByCreative = {};
-  mapping.forEach(function (m) {
-    if (m.creativeId && m.workId) (mapByCreative[m.creativeId] = mapByCreative[m.creativeId] || []).push(m);
-  });
-
-  // 1) 소재 행을 작업물 ID·주차로 합산
-  var works = {};
-  var unmappedMap = {};
-  judged.forEach(function (r) {
-    var cands = mapByCreative[r.creativeId] || [];
-    if (!cands.length) {
-      unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign, adgroup: r.adgroup, reason: '' };
-      return;
-    }
-    var hit = cands.filter(function (m) {
-      return (!m.postedAt || r.since >= m.postedAt) && (!m.replacedAt || r.since < m.replacedAt);
-    })[0];
-    if (!hit) {
-      // 모든 매핑 행의 교체일이 지난 뒤의 주: 새 작업물을 등록하지 않은 것 → 조용히 버리지 않고 미매핑으로 알린다.
-      // (게시일 이전 주는 어떤 작업물에도 속하지 않으므로 그대로 제외)
-      var afterAll = cands.every(function (m) { return m.replacedAt && r.since >= m.replacedAt; });
-      if (afterAll) {
-        unmappedMap[r.creativeId] = { creativeId: r.creativeId, product: r.product, campaign: r.campaign,
-          adgroup: r.adgroup, reason: '교체 후 새 작업물 등록 필요' };
-      }
-      return;
-    }
-
-    var w = works[hit.workId] = works[hit.workId] || { workId: hit.workId, product: r.product, weeks: {} };
-    var a = w.weeks[r.since] = w.weeks[r.since] || { imp: 0, clk: 0, cost: 0, conv: 0, convAmt: 0, rankSum: 0, rankImp: 0 };
-    a.imp += r.imp; a.clk += r.clk; a.cost += r.cost; a.conv += r.conv; a.convAmt += r.convAmt;
-    if (r.rank > 0 && r.imp > 0) { a.rankSum += r.rank * r.imp; a.rankImp += r.imp; }
-  });
+  // 1) 소재 행을 작업물 ID·주차로 합산 (배정 규칙은 groupByWork_ 참고)
+  var grouped = groupByWork_(judged, mapping);
+  var works = grouped.works;
+  var unmappedMap = grouped.unmappedMap;
 
   // 2) 광고 상품·주차별 풀 (기준선 계산용, 미매핑 소재 포함)
   var pool = {};

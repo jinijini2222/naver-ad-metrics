@@ -52,7 +52,7 @@ function sendWeeklyAlert() {
 /** 메일을 보내지 않고 내용만 로그에 출력 (AI 호출 없음). 테스트·검증용. */
 function previewAlert() {
   var r = runAlert_(new Date(), { send: false, requireFresh: false, useAi: false });
-  Logger.log(r.targets.length ? r.subject + '\n\n' + r.body : '알림 대상이 없습니다 (' + r.week + ')');
+  Logger.log(r.subject ? r.subject + '\n\n' + r.body : '알림 대상이 없습니다 (' + r.week + ')');
   return r;
 }
 
@@ -64,9 +64,12 @@ function runAlert_(now, opts) {
 
   var week = pickAlertWeek_(verdicts, now, opts.requireFresh);
   var targets = selectAlertTargets_(verdicts, week);
-  if (!targets.length) {
+  // 디자인 우선순위(7-2): 캠페인 단위. 소재 알림이 없어도 우선순위가 있으면 메일을 보낸다.
+  var priority = evaluatePriority_(parseRaw_(readSheetRows_(ss, SHEETS.RAW)), mapping, week, settings);
+  var pCount = priority.A.length + priority.B.length;
+  if (!targets.length && !pCount) {
     if (opts.send) logAlertEvent_('알림 없음', week + ' 주 알림 대상 없음', '');
-    return { sent: false, week: week, targets: [] };
+    return { sent: false, week: week, targets: [], priority: priority };
   }
 
   var advice = {};
@@ -77,15 +80,18 @@ function runAlert_(now, opts) {
     });
   }
   var unmapped = mapping.filter(function (m) { return !m.workId && m.creativeId; });
-  var mail = buildAlertMail_(targets, unmapped, week, ss.getUrl(), advice);
+  var mail = buildAlertMail_(targets, unmapped, week, ss.getUrl(), advice, pCount ? priority : null);
 
   if (opts.send) {
     var to = parseRecipients_(settings.recipients);
     if (!to) throw new Error("설정 탭의 '알림 수신자'가 비어 있습니다.");
     MailApp.sendEmail({ to: to, subject: mail.subject, body: mail.text, htmlBody: mail.html });
     targets.forEach(function (t) { logAlertEvent_(t.alertType, advice[t.workId] || '', to, t.workId); });
+    priority.A.concat(priority.B).forEach(function (i) {
+      logAlertEvent_('디자인 우선순위 ' + i.kind, i.campaign + (i.persist ? ' (지속)' : ''), to);
+    });
   }
-  return { sent: !!opts.send, week: week, targets: targets, subject: mail.subject, body: mail.text };
+  return { sent: !!opts.send, week: week, targets: targets, priority: priority, subject: mail.subject, body: mail.text };
 }
 
 // ---------- 순수 함수 ----------
@@ -161,9 +167,14 @@ function esc_(s) {
 }
 
 /** 알림 메일 제목·본문 생성 */
-function buildAlertMail_(targets, unmapped, week, sheetUrl, advice) {
+function buildAlertMail_(targets, unmapped, week, sheetUrl, advice, priority) {
   var until = addDays_(week, 6);
-  var subject = '[네이버 광고 알림] 기준 이하 소재 ' + targets.length + '건 (' + md_(week) + '~' + md_(until) + ')';
+  var pBlocks = priority ? priorityBlocks_(priority) : [];
+  var pCount = priority ? priority.A.length + priority.B.length : 0;
+  var range = ' (' + md_(week) + '~' + md_(until) + ')';
+  var subject = targets.length
+    ? '[네이버 광고 알림] 기준 이하 소재 ' + targets.length + '건' + (pCount ? ' · 디자인 우선순위 ' + pCount + '건' : '') + range
+    : '[네이버 광고 알림] 디자인 우선순위 ' + pCount + '건' + range;
 
   var text = [subject, ''];
   var html = ['<div style="font-family:sans-serif;font-size:14px;line-height:1.5">', '<h3>' + esc_(subject) + '</h3>'];
@@ -181,6 +192,17 @@ function buildAlertMail_(targets, unmapped, week, sheetUrl, advice) {
 
     html.push('<p><b>' + esc_(line) + '</b>' + (diag ? '<br>진단: ' + esc_(diag) : '') + '</p>');
     if (ai) html.push('<div style="background:#f5f5f5;padding:8px;border-radius:4px"><b>AI 개선안 초안</b><pre style="white-space:pre-wrap;font-family:inherit;margin:4px 0 0">' + esc_(ai) + '</pre></div>');
+  });
+
+  pBlocks.forEach(function (b) {
+    text.push('■ ' + b.title);
+    html.push('<h4 style="margin:14px 0 4px">' + esc_(b.title) + '</h4>');
+    b.items.forEach(function (it) {
+      text.push('- ' + it.head);
+      it.lines.forEach(function (l) { text.push('  ' + l); });
+      html.push('<p style="margin:4px 0"><b>' + esc_(it.head) + '</b>' + it.lines.map(function (l) { return '<br>' + esc_(l); }).join('') + '</p>');
+    });
+    text.push('');
   });
 
   if (unmapped && unmapped.length) {

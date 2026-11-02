@@ -1,13 +1,13 @@
 # 설치 방법
 
 1. 구글 시트를 만들고 **확장 프로그램 → Apps Script**를 연다.
-2. `src/` 의 `.gs` 파일 12개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Mapping`, `Banner`, `Alert`, `Ai`, `Report`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣고, **HTML 파일** `ReportGraph`(파일 `+` → HTML, 이름은 `ReportGraph`)에 `src/ReportGraph.html` 내용을 붙여넣는다.
+2. `src/` 의 `.gs` 파일 14개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Mapping`, `Banner`, `ItemReport`, `Priority`, `Alert`, `Ai`, `Report`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣고, **HTML 파일** `ReportGraph`(파일 `+` → HTML, 이름은 `ReportGraph`)에 `src/ReportGraph.html` 내용을 붙여넣는다.
 3. 프로젝트 설정에서 **"appsscript.json 매니페스트 파일 표시"**를 켜고 `src/appsscript.json` 내용으로 바꾼다. (타임존 Asia/Seoul, 메일·외부 요청 권한 포함)
 4. 시트를 새로고침하면 **네이버 광고** 메뉴가 생긴다. 순서대로 실행한다.
 
 | 메뉴 | 하는 일 | 키 필요 |
 | --- | --- | --- |
-| 1. 시트 초기화 | 6개 탭(성과기록_배너 포함), 헤더, 설정 기본값, 입력 제한 생성 (기존 값은 유지) | 아니오 |
+| 1. 시트 초기화 | 7개 탭(성과기록_배너·소재_주간리포트 포함), 헤더, 설정 기본값, 입력 제한 생성 (기존 값은 유지) | 아니오 |
 | 2. API 키 입력 | 네이버 API 라이선스·비밀키·고객 ID를 스크립트 속성에 저장 | 키 입력 |
 | 3. 연결 테스트 | 캠페인 목록을 로그에 출력 (1단계 완료 조건) | 예 |
 | 4. 지난주 수집 (수동) | 지난주 성과를 원본 탭에 기록 | 예 |
@@ -26,7 +26,7 @@
 
 ## 키 없이 해 볼 순서 (실제 시트에서)
 
-1. **1. 시트 초기화** → 6개 탭이 생기고 설정 탭에 10개 항목이 채워집니다.
+1. **1. 시트 초기화** → 7개 탭이 생기고 설정 탭에 14개 항목이 채워집니다.
 2. **9. 데모 데이터 넣기** → 원본 탭 48행, 매핑 탭 10행.
 3. **5. 판정 실행** → 판정 탭 40행. 매핑 탭 맨 아래에 `demo-S6`이 작업물 ID 빈칸으로 추가됩니다(미매핑 동작).
 4. 판정 탭에서 지난주 행을 확인합니다. 기대 결과는 아래와 같습니다.
@@ -42,8 +42,8 @@
 | demo-S6 | 미매핑 목록에 표시 |
 | demo-T1 | 판정 제외 (파워링크 텍스트) |
 
-5. 같은 시점에 **성과기록_배너** 탭에도 작업물 ID별 최신 결과가 채워집니다 ([PERFORMANCE_LOG.md](PERFORMANCE_LOG.md)).
-6. **7. 알림 미리보기** → 편집기 **실행 로그**에 `기준 이하 소재 3건` 제목과 본문이 출력됩니다. 메일은 가지 않습니다.
+5. 같은 시점에 **성과기록_배너** 탭과 **소재_주간리포트** 탭(최신 주, 상품별 소계·합계)에도 결과가 채워집니다 ([PERFORMANCE_LOG.md](PERFORMANCE_LOG.md), [REPORT.md](REPORT.md)).
+6. **7. 알림 미리보기** → 편집기 **실행 로그**에 `기준 이하 소재 3건 · 디자인 우선순위 2건` 제목과 본문이 출력됩니다. 우선순위는 `데모 캠페인 B`(전환 없음, 광고비 비중 20%)와 `데모 캠페인 C`(노출 10,000 → 500)입니다. 메일은 가지 않습니다.
 7. (선택) 설정 탭 `알림 수신자`에 본인 주소를 넣고 **8. 알림 발송** → 본인에게 메일이 옵니다. 알림_로그 탭에 3건이 기록됩니다.
 8. **11. 보고서 보기**로 그래프와 일반 보고서(서브 창)를 확인합니다.
 9. 확인이 끝나면 **10. 데모 데이터 지우기**. **실제 수집 전에 반드시 지우세요.** 데모 행이 남아 있으면 기준선이 오염됩니다.
@@ -58,6 +58,8 @@ node tests/ai.test.js
 node tests/mapping.test.js
 node tests/banner.test.js
 node tests/report.test.js
+node tests/itemreport.test.js
+node tests/priority.test.js
 node tests/manifest.test.js
 node tests/report.render.test.js   # 실제 브라우저(Chromium)로 보고서 화면 확인, 없으면 건너뜀
 node tests/draft.render.test.js    # 자동화 화면 초안(docs/draft) 확인, 없으면 건너뜀

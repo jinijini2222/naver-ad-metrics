@@ -19,13 +19,14 @@ function makeSheet(name) {
         setValues: (v) => { v.forEach((row, i) => row.forEach((x, j) => set(r + i, c + j, x))); return rg; },
         clearContent: () => { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) set(r + i, c + j, ''); return rg; },
         setNumberFormat: () => rg, setFontWeight: () => rg, setNote: () => rg,
+        setValue: (v) => { set(r, c, v); return rg; },
         protect: () => { const p = { setDescription: () => p, setWarningOnly: () => { prot.push(p); return p; } }; return p; },
         setDataValidation: (rule) => { validations.push({ tab: name, col: c, rows: nr, rule }); return rg; },
       };
       return rg;
     },
     appendRow: (row) => { const r = lastRow() + 1; row.forEach((x, j) => set(r, j + 1, x)); },
-    setFrozenRows() {}, autoResizeColumns() {}, setConditionalFormatRules: (r) => { cfRules.push(...r); },
+    setFrozenRows() {}, autoResizeColumns() {}, setRowHeights() {}, setColumnWidth() {}, setConditionalFormatRules: (r) => { cfRules.push(...r); },
     getProtections: () => prot,
     protect: () => { const p = { setDescription: () => p, setWarningOnly: () => { prot.push(p); return p; } }; return p; },
     rows: () => { const out = []; for (let r = 2; r <= lastRow(); r++) out.push(Array.from({ length: lastCol() }, (_, c) => get(r, c + 1))); return out; },
@@ -64,7 +65,7 @@ const globals = {
     },
   },
 };
-const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Banner.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
+const { ctx, call } = load(['Config.gs', 'Setup.gs', 'NaverApi.gs', 'Collect.gs', 'Verdict.gs', 'Mapping.gs', 'Banner.gs', 'ItemReport.gs', 'Priority.gs', 'Alert.gs', 'Ai.gs', 'Demo.gs'], globals);
 const run = (fn) => call(`${fn}()`);
 const TABS = ['네이버_원본', '매핑', '판정', '알림_로그', '설정'];
 const count = (tab) => sheets[tab].rows().length;
@@ -74,9 +75,9 @@ run('setupSheets');
 TABS.forEach((t) => assert.ok(sheets[t], t + ' 탭 생성'));
 assert.ok(!sheets.Sheet1, '빈 기본 시트 삭제');
 assert.strictEqual(sheets['판정'].header().length, 15);
-assert.strictEqual(sheets['설정'].rows().length, 10);
+assert.strictEqual(sheets['설정'].rows().length, 14);
 run('setupSheets');                                                     // 다시 실행해도 중복 없음
-assert.strictEqual(sheets['설정'].rows().length, 10);
+assert.strictEqual(sheets['설정'].rows().length, 14);
 assert.strictEqual(ss.tz, 'Asia/Seoul', '시트 시간대를 서울로');
 assert.strictEqual(sheets['성과기록_배너'].header().length, 18, '성과기록_배너 탭 생성');
 assert.ok(validations.some((x) => x.tab === '성과기록_배너' && x.col === 16 && x.rule.list.length === 5), '조치 드롭다운');
@@ -118,10 +119,33 @@ assert.strictEqual(v('DEMO_P1')[12], '개선 필요');
 assert.ok(!sheets['판정'].rows().some((r) => r[0].indexOf('T1') >= 0), '텍스트 소재 판정 제외');
 console.log('OK 판정 (개선 필요 / 성공 / 소재 피로 / 데이터 부족 / 순위 영향 / 미매핑 추가 / 재실행 안전)');
 
+// 3-1) 소재_주간리포트: 최신 주만, 상품별 소계와 합계 (전환은 총 전환수)
+{
+  const R = sheets['소재_주간리포트'];
+  assert.strictEqual(R.header().length, 14);
+  const rows = R.rows();
+  assert.strictEqual(rows.length, 13, '작업물 10 + 소계 2 + 합계 1');
+  assert.ok(rows.every((r) => r[0] === lastWeek), '최신 주만');
+  const s1 = rows.find((r) => r[2] === 'DEMO_S1');
+  assert.deepStrictEqual([s1[5], s1[6], s1[8], s1[10]], [10000, 100, 4, 12000]);     // 노출, 클릭, 전환(100×4%), 광고비(100×120)
+  assert.strictEqual(s1[12], '개선 필요');
+  assert.deepStrictEqual(rows.filter((r) => String(r[2]).startsWith('소계')).map((r) => r[2]), ['소계 · 쇼핑검색', '소계 · 파워링크 확장소재']);
+  const total = rows[rows.length - 1];
+  assert.strictEqual(total[2], '합계');
+  const itemsOnly = rows.filter((r) => String(r[2]).startsWith('DEMO_'));
+  assert.strictEqual(total[5], itemsOnly.reduce((a, r) => a + r[5], 0), '합계 노출 = 작업물 합');
+  assert.strictEqual(total[8], itemsOnly.reduce((a, r) => a + r[8], 0), '합계 전환 = 작업물 합');
+  console.log('OK 소재_주간리포트 (최신 주, 상품별 소계, 합계)');
+}
+
 // 4) 알림 미리보기 (발송 안 함)
 const prev = call('previewAlert()');
 assert.deepStrictEqual(prev.targets.map((t) => t.workId).sort(), ['DEMO_P1', 'DEMO_S1', 'DEMO_S3']);
-assert.match(prev.subject, /기준 이하 소재 3건/);
+assert.match(prev.subject, /기준 이하 소재 3건 · 디자인 우선순위 2건/);
+assert.deepStrictEqual(prev.priority.A.map((i) => i.campaign), ['데모 캠페인 B']);      // 광고비 비중 큼 + 전환 없음
+assert.deepStrictEqual(prev.priority.B.map((i) => i.campaign), ['데모 캠페인 C']);      // 노출 급감 (10,000 → 500)
+assert.match(prev.body, /데모 캠페인 B \| 광고비 .*전환율 0\.00%/);
+assert.match(prev.body, /데모 캠페인 C \| 노출 10,000 → 500 \(-95%\)/);
 assert.strictEqual(mails.length, 0, '미리보기는 메일을 보내지 않음');
 console.log('OK 알림 미리보기 (대상 3건, 발송 없음)');
 
@@ -137,6 +161,8 @@ assert.strictEqual(sent.sent, true);
 assert.strictEqual(mails.length, 2);
 assert.strictEqual(mails[1].to, 'designer@test.com');
 assert.match(mails[1].body, /미매핑 소재 1건[\s\S]*demo-S6/);
+assert.match(mails[1].body, /디자인 우선순위 · 비용은 큰데 전환율이 낮은 캠페인/);
+assert.ok(sheets['알림_로그'].rows().some((r) => r[2] === '디자인 우선순위 A' && r[3].includes('데모 캠페인 B')), '우선순위 로그');
 assert.ok(mails[1].htmlBody.includes('href="https://docs.google.com/spreadsheets/d/FAKE"'));
 assert.ok(sheets['알림_로그'].rows().filter((r) => r[1].indexOf('DEMO_') === 0).length === 3, '소재별 로그 3건');
 console.log('OK 알림 발송 (수신자 없음 → 오류 메일 / 있음 → 발송 + 로그)');
@@ -198,6 +224,7 @@ assert.strictEqual(count('네이버_원본'), 0);
 assert.strictEqual(count('매핑'), 0);
 assert.strictEqual(count('판정'), 0);
 assert.strictEqual(count('성과기록_배너'), 0, '데모 작업물 행 삭제');
+assert.strictEqual(count('소재_주간리포트'), 0, '데이터가 없으면 소재 리포트도 비움');
 assert.strictEqual(sheets['알림_로그'].rows().filter((r) => r[1].indexOf('DEMO_') === 0).length, 0);
 const before = mails.length;
 assert.throws(() => run('runVerdictJob'), /지난주\(.*\) 데이터가 수집되지 않아 판정을 건너뜁니다/);
