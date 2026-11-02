@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>자동화 화면 초안</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --panel:#f8fafc; --accent:#1a73e8;
+          --good:#2e7d32; --mid:#5f6b7a; --bad:#c62828; --nodata:#8c95a3; --warn:#9a6700; --warnbg:#fff7e0; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px 32px; font:13px/1.5 "Noto Sans KR","Malgun Gothic",system-ui,sans-serif; color:var(--ink); background:#fff; }
+  h1 { font-size:17px; margin:0; } h2 { font-size:14px; margin:0 0 8px; } h3 { font-size:13px; margin:0 0 6px; }
+  .muted { color:var(--muted); font-size:12px; }
+  .draft { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; padding:8px 12px; margin-bottom:12px;
+           background:var(--warnbg); border:1px solid #f0d58a; border-radius:8px; }
+  .draft b { color:var(--warn); }
+  .badge { display:inline-block; padding:0 8px; border-radius:10px; font-size:11px; line-height:19px; color:#fff; white-space:nowrap; }
+  .tabs { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+  .tab { font:inherit; padding:8px 12px; border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; background:none; color:var(--muted); cursor:pointer; }
+  .tab[aria-selected="true"] { color:var(--ink); font-weight:700; background:#fff; border-color:var(--line); margin-bottom:-1px; border-bottom:1px solid #fff; }
+  .tab:focus-visible, select:focus-visible, input:focus-visible, button:focus-visible, tr.sel:focus-visible, tr[tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .panel[hidden] { display:none; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-bottom:10px; }
+  label.f { display:flex; flex-direction:column; font-size:11px; color:var(--muted); gap:2px; }
+  select, input[type=number] { font:inherit; padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; color:var(--ink); }
+  input[type=number] { width:84px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:8px; margin-bottom:12px; }
+  .card { border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--panel); }
+  .card .n { font-size:19px; font-weight:700; line-height:1.25; } .card .l { font-size:11px; color:var(--muted); }
+  .box { border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:middle; }
+  th { background:var(--panel); font-weight:600; white-space:nowrap; position:sticky; top:0; }
+  td.r, th.r { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  tfoot td { font-weight:700; background:var(--panel); }
+  tr.sel { background:#eef4ff; } tr[data-pick] { cursor:pointer; } tr[data-pick]:hover { background:#f3f7ff; }
+  .thumb { width:44px; height:44px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; letter-spacing:.02em; }
+  .mini { position:relative; height:8px; background:#eef2f7; border-radius:4px; min-width:60px; margin-top:3px; }
+  .mini i { position:absolute; left:0; top:0; bottom:0; border-radius:4px; background:#7c8aa0; }
+  .note { font-size:12px; color:var(--muted); margin:8px 0 0; }
+  .warn { background:var(--warnbg); border:1px solid #f0d58a; border-radius:6px; padding:6px 10px; font-size:12px; margin-bottom:10px; }
+  .feed { list-style:none; margin:0; padding:0; }
+  .feed li { display:grid; grid-template-columns:auto 1fr auto; gap:10px; padding:9px 4px; border-bottom:1px solid var(--line); align-items:start; }
+  .dot { width:10px; height:10px; border-radius:50%; margin-top:5px; }
+  .chips { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+  .timeline { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:6px; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:8px 10px; } .step b { display:block; }
+  .src { border:1px solid var(--line); border-radius:8px; padding:10px; }
+  svg { display:block; width:100%; height:auto; } svg text { font-family:inherit; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  @media (max-width:760px) { .two, .timeline { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="draft" role="note">
+  <div><b>초안</b> · 화면 구성을 검토하기 위한 목업입니다. 아래 수치·이미지·규격·공지는 모두 <b>샘플 데이터</b>이며 실제 값이 아닙니다.</div>
+  <div class="muted">기준일 2026-11-02 · PRD 15절</div>
+</div>
+<h1>광고 소재 자동화 화면 초안</h1>
+<p class="muted" style="margin:2px 0 12px">구현 시에는 현재 보고서 화면(<code>ReportGraph.html</code>)에 탭으로 추가하고, 데이터는 <code>buildReportData_</code>가 시트에서 만들어 줍니다.</p>
+
+<div class="tabs" role="tablist" aria-label="자동화 화면" id="tabs"></div>
+<div id="panels"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') e.textContent = attrs[k]; else if (k === 'style') e.style.cssText = attrs[k]; else e.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(tag, attrs, kids) {
+    var e = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { e.appendChild(c); });
+    return e;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  var n0 = function (x) { return Math.round(x).toLocaleString('ko-KR'); };
+  var pct = function (x, d) { return (x * 100).toFixed(d == null ? 2 : d) + '%'; };
+  var sgn = function (x, d) { return (x >= 0 ? '+' : '') + (x * 100).toFixed(d == null ? 0 : d) + '%'; };
+  var won = function (x) { return n0(x) + '원'; };
+  function chip(text, color) { return el('span', { 'class': 'badge', text: text, style: 'background:' + color }); }
+  var C = { good: '#2e7d32', mid: '#5f6b7a', bad: '#c62828', none: '#8c95a3', warn: '#9a6700', blue: '#1a73e8' };
+  var VCOLOR = { '성공': C.good, '보통': C.mid, '개선 필요': C.bad, '데이터 부족': C.none };
+  function table(head, rows, opts) {
+    opts = opts || {};
+    var t = el('table'), tr = el('tr');
+    if (opts.caption) t.appendChild(el('caption', { 'class': 'sr', text: opts.caption }));
+    head.forEach(function (h, i) { tr.appendChild(el('th', { 'class': (opts.right || []).indexOf(i) >= 0 ? 'r' : '', text: h })); });
+    t.appendChild(el('thead', {}, [tr]));
+    var tb = el('tbody');
+    rows.forEach(function (r) {
+      var row = el('tr', r.attrs || {});
+      r.cells.forEach(function (c, i) {
+        var td = el('td', { 'class': (opts.right || []).indexOf(i) >= 0 ? 'r' : '' });
+        if (c && c.nodeType) td.appendChild(c); else td.textContent = c == null ? '' : String(c);
+        row.appendChild(td);
+      });
+      if (r.onpick) {
+        row.setAttribute('data-pick', '1'); row.setAttribute('tabindex', '0');
+        row.addEventListener('click', r.onpick);
+        row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); r.onpick(); } });
+      }
+      tb.appendChild(row);
+    });
+    t.appendChild(tb);
+    if (opts.foot) { var tf = el('tfoot'), fr = el('tr'); opts.foot.forEach(function (c, i) { fr.appendChild(el('td', { 'class': (opts.right || []).indexOf(i) >= 0 ? 'r' : '', text: c })); }); tf.appendChild(fr); t.appendChild(tf); }
+    return t;
+  }
+  function field(label, node) { return el('label', { 'class': 'f' }, [label, node]); }
+  function select(opts, val, on) {
+    var s = el('select'); opts.forEach(function (o) { var op = el('option', { value: o[0], text: o[1] }); if (o[0] === val) op.selected = true; s.appendChild(op); });
+    s.addEventListener('change', function () { on(s.value); }); return s;
+  }
+  function num(val, step, on, id) {
+    var i = el('input', { type: 'number', value: String(val), step: String(step), min: '0', id: id || '' });
+    i.addEventListener('input', function () { var v = parseFloat(i.value); if (isFinite(v)) on(v); }); return i;
+  }
+
+  // ===== 샘플 데이터 =====
+  var GRAD = ['#4f7cac', '#c0733c', '#5f9e6e', '#8a63b5', '#b5546b', '#3f8f98', '#a08a2e', '#6b7fd7'];
+  var WORKS = {  // [작업물, 광고 상품, 노출, 클릭, 전환, 광고비, 알림]
+    '10/26~11/1': [
+      ['SH_1019_B', '쇼핑검색', 18400, 330, 21, 118400, ''], ['SH_1005_A', '쇼핑검색', 15200, 190, 9, 70500, ''],
+      ['SH_0928_A', '쇼핑검색', 9800, 205, 14, 82300, ''], ['SH_1012_A', '쇼핑검색', 6100, 55, 2, 24100, ''],
+      ['SH_1026_A', '쇼핑검색', 640, 8, 0, 3300, ''],
+      ['PI_1019_A', '파워링크 확장소재', 8200, 214, 12, 61800, ''], ['PI_1005_B', '파워링크 확장소재', 7400, 119, 4, 44900, ''],
+      ['PI_0928_A', '파워링크 확장소재', 6900, 150, 8, 52000, '소재 피로']],
+    '10/19~10/25': [
+      ['SH_1019_B', '쇼핑검색', 16900, 280, 17, 101000, ''], ['SH_1005_A', '쇼핑검색', 15800, 235, 11, 78200, ''],
+      ['SH_0928_A', '쇼핑검색', 10300, 198, 12, 80100, ''], ['SH_1012_A', '쇼핑검색', 6900, 83, 3, 31400, ''],
+      ['SH_1026_A', '쇼핑검색', 0, 0, 0, 0, ''],
+      ['PI_1019_A', '파워링크 확장소재', 7600, 190, 10, 55100, ''], ['PI_1005_B', '파워링크 확장소재', 7900, 140, 6, 47300, ''],
+      ['PI_0928_A', '파워링크 확장소재', 7300, 171, 9, 56600, '']]
+  };
+  var MINIMP = 1000;
+  function verdictOf(w, base) {
+    if (w[2] < MINIMP) return '데이터 부족';
+    var r = (w[3] / w[2]) / base; return r >= 1.2 ? '성공' : r <= 0.8 ? '개선 필요' : '보통';
+  }
+  var CAMPS = [  // [캠페인, 광고 상품, 전주 노출, 이번 주 노출, 광고비, 클릭, 전환]
+    ['캠페인 A · 쇼핑 전체상품', '쇼핑검색', 120000, 104000, 1420000, 1150, 5],
+    ['캠페인 B · 쇼핑 신제품', '쇼핑검색', 52000, 21000, 610000, 480, 9],
+    ['캠페인 C · 쇼핑 카테고리1', '쇼핑검색', 60000, 55000, 560000, 330, 1],
+    ['캠페인 D · 쇼핑 카테고리2', '쇼핑검색', 40000, 15000, 300000, 90, 0],
+    ['캠페인 E · 파워링크 브랜드', '파워링크 확장소재', 30000, 29000, 520000, 600, 4],
+    ['캠페인 F · 쇼핑 카테고리3', '쇼핑검색', 22000, 22000, 280000, 210, 1]
+  ];
+  var TOP_WORKS = { '캠페인 A · 쇼핑 전체상품': ['SH_1019_B', 'SH_0928_A', 'SH_1005_A'], '캠페인 C · 쇼핑 카테고리1': ['SH_1012_A', 'SH_1005_A', 'SH_0928_A'] };
+  var SPECS = [  // 예시 규칙 (실제 공지가 아님)
+    { spec: '750x280', area: '성과형 디스플레이 배너', status: '중단 예정', date: '2026-12-01', alt: '(공지 확인 필요)', src: '공지 URL 입력' },
+    { spec: '1200x628', area: '성과형 디스플레이 배너', status: '정상', date: '', alt: '', src: '' },
+    { spec: '300x250', area: '성과형 디스플레이 배너', status: '정상', date: '', alt: '', src: '' }
+  ];
+  var BANNERS = [  // [작업물, 규격, 조치, 최근 주 노출]
+    ['BN_1001_A', '750x280', '', 52000], ['BN_0915_B', '750x280', '교체 완료', 0], ['BN_1019_A', '1200x628', '', 31000],
+    ['BN_1012_C', '750x280', '수정안 제작 중', 18000], ['BN_1026_A', '300x250', '', 9400]
+  ];
+  var AB = [  // [교체일, 소재, 이전, 새, 전CTR, 후CTR, 전기준선, 후기준선, 전환율 전, 후, 후 주수, 전 노출, 후 노출]
+    ['2026-10-12', 'nad-…0649', 'SH_0921_A', 'SH_1012_A', 0.0110, 0.0178, 0.0130, 0.0135, 0.021, 0.029, 2, 21000, 24000],
+    ['2026-10-05', 'nad-…1127', 'PI_0914_A', 'PI_1005_B', 0.0190, 0.0150, 0.0185, 0.0200, 0.032, 0.026, 2, 14800, 15300],
+    ['2026-10-19', 'nad-…2301', 'SH_1005_A', 'SH_1019_B', 0.0140, 0.0150, 0.0150, 0.0155, 0.024, 0.026, 2, 19000, 21000],
+    ['2026-10-12', 'nad-…0877', 'SH_0921_B', 'SH_1012_D', 0.0090, 0.0125, 0.0140, 0.0150, 0.018, 0.000, 2, 12500, 640],
+    ['2026-10-26', 'nad-…3342', 'PI_0928_B', 'PI_1026_A', 0.0170, 0.0210, 0.0180, 0.0184, 0.027, 0.031, 1, 9100, 6400]
+  ];
+  var FEED = [
+    { type: '비즈머니 잔액 부족', color: C.bad, target: '계정 전체', detail: '잔액 186,000원 · 최근 7일 평균 일 소진 72,000원 → 약 2.6일분 (기준 3일)', at: '2026-11-02 09:05', ch: ['메일', '슬랙'] },
+    { type: '소진율 급증', color: C.warn, target: '캠페인 A · 쇼핑 전체상품', detail: '어제 광고비 312,000원 · 최근 7일 평균 128,000원 대비 +144% (기준 +100%)', at: '2026-11-02 09:05', ch: ['메일', '슬랙'] },
+    { type: '노출 급감', color: C.warn, target: '캠페인 B · 쇼핑 신제품', detail: '어제 노출 2,900 · 전일 7,100 대비 -59% (기준 -50%)', at: '2026-11-01 09:04', ch: ['메일'] },
+    { type: '노출 급감', color: C.warn, target: '캠페인 D · 쇼핑 카테고리2', detail: '어제 노출 1,800 · 전일 4,300 대비 -58% (기준 -50%) · 2일 연속', at: '2026-10-31 09:04', ch: ['메일'] }
+  ];
+  var SOURCES = [
+    { name: 'API 수집 (/stats)', state: '키 대기', color: C.none, last: '-', note: '키 발급 후 사용' },
+    { name: '대용량 보고서 (STAT-REPORT)', state: '키 대기', color: C.none, last: '-', note: '확장소재 성과가 필요할 때' },
+    { name: '드롭 폴더 (CSV 업로드)', state: '사용 중', color: C.good, last: '2026-11-02 09:03', note: '마케터가 월요일에 업로드' }
+  ];
+  var FILES = [
+    { file: 'report_1026_1101.csv', period: '10/26~11/1', rows: 2884, creatives: 71, state: '완료', color: C.good, msg: '' },
+    { file: 'report_1019_1025.csv', period: '10/19~10/25', rows: 2791, creatives: 66, state: '완료', color: C.good, msg: '' },
+    { file: 'monthly_raw_202610.csv', period: '10/5~10/25', rows: 8705, creatives: 82, state: '경고', color: C.warn, msg: '월말 주(10/26~) 누락: 3주만 포함. 지난주 월~일로 받아 주세요.' },
+    { file: 'report_1012_1018.csv', period: '-', rows: 0, creatives: 0, state: '형식 오류', color: C.bad, msg: "필수 열 '클릭수' 없음" }
+  ];
+
+  // ===== 화면: ① 소재 주간 리포트 =====
+  var s1 = { week: '10/26~11/1', product: '전체', sort: 'imp' };
+  function render1(root) {
+    clear(root);
+    var all = WORKS[s1.week];
+    var prodSum = {};
+    all.forEach(function (w) { var p = prodSum[w[1]] = prodSum[w[1]] || [0, 0, 0]; p[0] += w[2]; p[1] += w[3]; if (w[2] > 0) p[2]++; });
+    var rows = all.filter(function (w) { return s1.product === '전체' || w[1] === s1.product; }).map(function (w) {
+      var v = verdictOf(w, prodSum[w[1]][1] / prodSum[w[1]][0]);
+      var enough = prodSum[w[1]][2] >= 5;   // 광고 상품별 소재 5개 미만이면 알림 끔
+      var alert = v === '개선 필요' ? (enough ? '개선 필요' : '알림 끔 (소재 ' + prodSum[w[1]][2] + '개)') : w[6];
+      return { w: w, ctr: w[2] ? w[3] / w[2] : 0, cvr: w[3] ? w[4] / w[3] : 0, v: v, alert: alert };
+    });
+    rows.sort(function (a, b) { return s1.sort === 'ctr' ? b.ctr - a.ctr : s1.sort === 'conv' ? b.w[4] - a.w[4] : b.w[2] - a.w[2]; });
+    var T = rows.reduce(function (t, r) { t[0] += r.w[2]; t[1] += r.w[3]; t[2] += r.w[4]; t[3] += r.w[5]; return t; }, [0, 0, 0, 0]);
+    var maxCtr = Math.max.apply(null, rows.map(function (r) { return r.ctr; }).concat([0.0001]));
+
+    root.appendChild(el('div', { 'class': 'bar' }, [
+      field('주차', select(Object.keys(WORKS).map(function (k) { return [k, k]; }), s1.week, function (v) { s1.week = v; render1(root); })),
+      field('광고 상품', select([['전체', '전체'], ['쇼핑검색', '쇼핑검색'], ['파워링크 확장소재', '파워링크 확장소재']], s1.product, function (v) { s1.product = v; render1(root); })),
+      field('정렬', select([['imp', '노출 많은 순'], ['ctr', 'CTR 높은 순'], ['conv', '전환 많은 순']], s1.sort, function (v) { s1.sort = v; render1(root); }))
+    ]));
+    root.appendChild(el('div', { 'class': 'cards' }, [
+      ['노출수', n0(T[0])], ['클릭수', n0(T[1])], ['CTR', pct(T[0] ? T[1] / T[0] : 0)], ['전환수', n0(T[2])], ['전환율', pct(T[1] ? T[2] / T[1] : 0)], ['광고비', won(T[3])]
+    ].map(function (c) { return el('div', { 'class': 'card' }, [el('div', { 'class': 'n', text: c[1] }), el('div', { 'class': 'l', text: c[0] })]); })));
+    var body = rows.map(function (r, i) {
+      var th = el('div', { 'class': 'thumb', style: 'background:linear-gradient(135deg,' + GRAD[i % GRAD.length] + ',#1f2937)', title: '이미지 URL 또는 API 이미지 (샘플)', text: 'IMG' });
+      var bar = el('div', {}, [el('span', { text: pct(r.ctr) }), el('div', { 'class': 'mini' }, [el('i', { style: 'width:' + (r.ctr / maxCtr * 100) + '%' })])]);
+      return { cells: [th, r.w[0], r.w[1], n0(r.w[2]), n0(r.w[3]), bar, n0(r.w[4]), pct(r.cvr), won(r.w[5]), chip(r.v, VCOLOR[r.v]), r.alert] };
+    });
+    var box = el('div', { 'class': 'box', style: 'padding:0;overflow:auto' }, [
+      table(['이미지', '작업물', '광고 상품', '노출수', '클릭수', 'CTR', '전환수', '전환율', '광고비', '판정', '알림'], body,
+        { right: [3, 4, 5, 6, 7, 8], caption: '소재별 성과 주간 리포트', foot: ['합계', '', '', n0(T[0]), n0(T[1]), pct(T[0] ? T[1] / T[0] : 0), n0(T[2]), pct(T[1] ? T[2] / T[1] : 0), won(T[3]), '', ''] })
+    ]);
+    root.appendChild(box);
+    root.appendChild(el('p', { 'class': 'note', text: '이미지는 API 응답에서 받을 수 있으면 자동으로, 아니면 매핑 탭의 이미지 URL(=IMAGE)로 표시합니다. 판정은 같은 광고 상품 합산 CTR(기준선) 대비입니다. 노출 1,000 미만은 데이터 부족, 광고 상품별 소재가 5개 미만이면 개선 필요여도 알림을 끕니다.' }));
+  }
+
+  // ===== 화면: ② 디자인 우선순위 =====
+  var s2 = { share: 10, minClicks: 100, cvr: 0.5, drop: 50 };
+  function render2(root) {
+    clear(root);
+    var total = CAMPS.reduce(function (t, c) { return t + c[4]; }, 0);
+    root.appendChild(el('div', { 'class': 'bar' }, [
+      field('광고비 비중 ≥ (%)', num(s2.share, 1, function (v) { s2.share = v; refresh(); }, 'th-share')),
+      field('최소 클릭', num(s2.minClicks, 10, function (v) { s2.minClicks = v; refresh(); }, 'th-clicks')),
+      field('전환율 ≤ (%)', num(s2.cvr, 0.1, function (v) { s2.cvr = v; refresh(); }, 'th-cvr')),
+      field('노출 감소 ≥ (%)', num(s2.drop, 5, function (v) { s2.drop = v; refresh(); }, 'th-drop')),
+      el('span', { 'class': 'muted', text: '값을 바꾸면 결과가 다시 계산됩니다 (설정 탭 값에 해당).' })
+    ]));
+    var out = el('div'); root.appendChild(out);
+    function refresh() {
+      clear(out);
+      var A = [], B = [], hidden = 0;
+      CAMPS.forEach(function (c) {
+        var share = c[4] / total * 100, cvr = c[5] ? c[6] / c[5] * 100 : 0, drop = c[2] ? (1 - c[3] / c[2]) * 100 : 0;
+        var okA = share >= s2.share && c[5] >= s2.minClicks && cvr <= s2.cvr;
+        var okB = c[2] >= 1000 && drop >= s2.drop;
+        if (okA) A.push({ c: c, share: share, cvr: cvr });
+        if (okB) B.push({ c: c, drop: drop });
+        if (!okA && !okB) hidden++;
+      });
+      var left = el('div', { 'class': 'box' }, [el('h2', { text: 'A. 비용은 큰데 전환율이 낮은 캠페인 (' + A.length + '건)' }),
+        A.length ? table(['캠페인', '광고비 (비중)', '클릭', '전환', '전환율', '조치 후보'], A.map(function (a) {
+          return { cells: [a.c[0], won(a.c[4]) + ' (' + a.share.toFixed(0) + '%)', n0(a.c[5]), n0(a.c[6]), a.cvr.toFixed(2) + '%', chip('교체·제작 후보', C.bad)] };
+        }), { right: [1, 2, 3, 4], caption: '비용 대비 전환율 낮은 캠페인' }) : el('p', { 'class': 'note', text: '해당 캠페인이 없습니다.' }),
+        el('p', { 'class': 'note', text: '전환율이 낮은 원인이 상세페이지·가격일 수도 있어 함께 확인합니다.' })]);
+      var right = el('div', { 'class': 'box' }, [el('h2', { text: 'B. 노출이 전주 대비 크게 줄어든 캠페인 (' + B.length + '건)' }),
+        B.length ? table(['캠페인', '전주 노출', '이번 주 노출', '변화', '조치 후보'], B.map(function (b) {
+          return { cells: [b.c[0], n0(b.c[2]), n0(b.c[3]), '-' + b.drop.toFixed(0) + '%', chip('원인 확인 먼저', C.warn)] };
+        }), { right: [1, 2, 3], caption: '노출 급감 캠페인' }) : el('p', { 'class': 'note', text: '해당 캠페인이 없습니다.' }),
+        el('p', { 'class': 'note', text: '입찰·예산·심사 상태를 먼저 확인합니다. 디자인 문제가 아닐 수 있습니다.' })]);
+      out.appendChild(el('div', { 'class': 'two' }, [left, right]));
+      var drill = A.filter(function (a) { return TOP_WORKS[a.c[0]]; });
+      if (drill.length) {
+        out.appendChild(el('div', { 'class': 'box' }, [el('h2', { text: '드릴다운: 해당 캠페인에서 광고비가 큰 소재 상위 3개' })].concat(drill.map(function (a) {
+          return el('p', { style: 'margin:3px 0' }, [el('b', { text: a.c[0] + ' → ' }), TOP_WORKS[a.c[0]].join(', ')]);
+        }))));
+      }
+      out.appendChild(el('p', { 'class': 'note', text: '기준에 해당하지 않는 캠페인 ' + hidden + '개는 표시하지 않았습니다. 같은 대상이 연속으로 걸리면 알림 메일에 "지속"으로 표시합니다.' }));
+    }
+    refresh();
+  }
+
+  // ===== 화면: ③ 규격 점검 =====
+  function render3(root) {
+    clear(root);
+    var today = new Date('2026-11-02T00:00:00+09:00');
+    root.appendChild(el('div', { 'class': 'warn', text: '예시 데이터입니다. 750x280 중단은 요구 사항에서 받은 예시이며, 실제 공지를 확인한 뒤 규칙 탭에 등록해야 합니다.' }));
+    var rules = el('div', { 'class': 'box' }, [el('h2', { text: '규격 규칙 (사람이 공지를 보고 등록)' }),
+      table(['규격', '지면', '상태', '시행일', '대체 규격', '출처'], SPECS.map(function (r) {
+        return { cells: [r.spec, r.area, chip(r.status, r.status === '정상' ? C.good : C.bad), r.date || '-', r.alt || '-', r.src || '-'] };
+      }), { caption: '규격 규칙' })]);
+    var bad = {}; SPECS.forEach(function (r) { if (r.status !== '정상') bad[r.spec] = r; });
+    var list = BANNERS.filter(function (b) { return bad[b[1]]; }).map(function (b) {
+      var r = bad[b[1]], d = Math.ceil((new Date(r.date + 'T00:00:00+09:00') - today) / 86400000), done = b[2] === '교체 완료';
+      return { b: b, d: d, done: done, r: r };
+    });
+    list.sort(function (x, y) { return (x.done - y.done) || (x.d - y.d); });
+    var open = list.filter(function (x) { return !x.done; }).length;
+    var res = el('div', { 'class': 'box' }, [el('h2', { text: '교체 목록 (' + open + '건 진행 필요)' }),
+      table(['작업물', '현재 규격', '중단 예정일', '남은 일수', '대체 규격', '최근 주 노출', '조치'], list.map(function (x) {
+        return { cells: [x.b[0], x.b[1], x.r.date, x.done ? '-' : 'D-' + x.d, x.r.alt, n0(x.b[3]), x.done ? chip('교체 완료', C.good) : chip(x.b[2] || '미착수', x.b[2] ? C.warn : C.bad)] };
+      }), { right: [3, 5], caption: '교체가 필요한 소재 목록' }),
+      el('p', { 'class': 'note', text: '시행일 30일 전, 7일 전에 알림을 보냅니다. 교체 완료로 표시하면 목록에서 빠집니다. 규격은 매핑 탭의 규격 열(또는 API)에서 가져옵니다.' })]);
+    root.appendChild(rules); root.appendChild(res);
+  }
+
+  // ===== 화면: ④ 교체 전후 기록 =====
+  var s4 = { pick: 0 };
+  function abResult(a) {
+    if (a[10] < 2) return { adj: null, label: '집계 중', color: C.none };
+    if (a[11] < MINIMP || a[12] < MINIMP) return { adj: null, label: '데이터 부족', color: C.none };
+    var adj = (a[5] / a[4]) / (a[7] / a[6]) - 1;
+    return { adj: adj, label: adj >= 0.1 ? '개선' : adj <= -0.1 ? '악화' : '변화 없음', color: adj >= 0.1 ? C.good : adj <= -0.1 ? C.bad : C.mid };
+  }
+  function render4(root) {
+    clear(root);
+    root.appendChild(el('div', { 'class': 'warn', text: '교체 전후 비교이며 통제된 A/B 실험이 아닙니다. 요일·시즌·입찰 변화의 영향을 받으므로, 같은 기간 광고 상품 기준선의 변화로 보정한 값도 함께 봅니다.' }));
+    var rows = AB.map(function (a, i) {
+      var r = abResult(a);
+      return { attrs: i === s4.pick ? { 'class': 'sel' } : {}, onpick: function () { s4.pick = i; render4(root); },
+        cells: [a[0], a[1], a[2] + ' → ' + a[3], pct(a[4]), pct(a[5]), sgn(a[5] / a[4] - 1), r.adj == null ? '-' : sgn(r.adj), pct(a[8], 1) + ' → ' + pct(a[9], 1), a[10] + '주', chip(r.label, r.color)] };
+    });
+    root.appendChild(el('div', { 'class': 'box', style: 'padding:0;overflow:auto' }, [table(['교체일', '소재', '이전 → 새 작업물', '전 CTR', '후 CTR', '변화', '기준선 보정 변화', '전환율 전 → 후', '후 기간', '결과'], rows,
+      { right: [3, 4, 5, 6, 8], caption: '교체 전후 기록' })]));
+    var a = AB[s4.pick], r = abResult(a);
+    var W = 560, H = 190, L = 70, bw = 120, gap = 80, T = 14, max = Math.max(a[4], a[5], a[6], a[7]) * 1.25;
+    var Y = function (v) { return T + (H - T - 30) * (1 - v / max); };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': '교체 전후 CTR 비교' });
+    [['교체 전', a[4], a[6], L], ['교체 후', a[5], a[7], L + bw + gap]].forEach(function (g, i) {
+      svg.appendChild(sv('rect', { x: g[3], y: Y(g[1]), width: bw, height: H - 30 - Y(g[1]), rx: 3, fill: i ? C.blue : '#7c8aa0' }));
+      svg.appendChild(sv('text', { x: g[3] + bw / 2, y: Y(g[1]) - 6, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#1f2937', text: pct(g[1]) }));
+      svg.appendChild(sv('line', { x1: g[3] - 8, x2: g[3] + bw + 8, y1: Y(g[2]), y2: Y(g[2]), stroke: '#111827', 'stroke-width': 2, 'stroke-dasharray': '4 3' }));
+      svg.appendChild(sv('text', { x: g[3] + bw + 10, y: Y(g[2]) + 4, 'font-size': 10.5, fill: '#374151', text: '기준선 ' + pct(g[2]) }));
+      svg.appendChild(sv('text', { x: g[3] + bw / 2, y: H - 10, 'text-anchor': 'middle', 'font-size': 12, fill: '#1f2937', text: g[0] }));
+    });
+    var detail = el('div', { 'class': 'box' }, [el('h2', { text: '선택한 교체: ' + a[2] + ' → ' + a[3] + ' (' + a[0] + ')' }), el('div', { style: 'max-width:620px' }, [svg]),
+      el('p', { 'class': 'note', text: r.adj == null ? '결과: ' + r.label + (r.label === '집계 중' ? ' (교체 후 2주가 쌓이면 판정)' : ' (전·후 노출 1,000 이상 필요)') :
+        '결과: ' + r.label + ' · CTR 변화 ' + sgn(a[5] / a[4] - 1) + ' → 기준선 보정 후 ' + sgn(r.adj) + ' (±10% 이상이면 개선/악화)' })]);
+    root.appendChild(detail);
+  }
+
+  // ===== 화면: ⑤ 이상 징후 =====
+  function render5(root) {
+    clear(root);
+    var feed = el('ul', { 'class': 'feed', 'aria-label': '이상 징후 알림 목록' }, FEED.map(function (f) {
+      return el('li', {}, [el('span', { 'class': 'dot', style: 'background:' + f.color }),
+        el('div', {}, [el('b', { text: f.type + ' · ' + f.target }), el('div', { 'class': 'muted', text: f.detail })]),
+        el('div', {}, [el('div', { 'class': 'chips' }, f.ch.map(function (c) { return chip(c, c === '슬랙' ? '#4a154b' : C.blue); })), el('div', { 'class': 'muted', style: 'text-align:right', text: f.at })])]);
+    }));
+    var set = el('div', { 'class': 'box' }, [el('h2', { text: '기준값 (설정 탭)' }), table(['항목', '기준'], [
+      { cells: ['비즈머니 잔액', '평균 일 소진액의 3일분 미만'] }, { cells: ['소진율 급증', '최근 7일 평균 대비 +100% 이상'] },
+      { cells: ['노출 급감', '전일 대비 -50% 이하 (평균 1,000 이상일 때)'] }, { cells: ['실행', '평일 매일 09:00, 같은 이상은 하루 1회'] }]),
+      el('h3', { style: 'margin-top:12px', text: '발송 채널' }),
+      el('div', { 'class': 'chips', style: 'justify-content:flex-start' }, [chip('메일 사용', C.good), chip('슬랙: 웹훅 필요', C.none)]),
+      el('p', { 'class': 'note', text: '슬랙 웹훅 URL은 채널 관리자가 발급하며 스크립트 속성에만 저장합니다. 없으면 메일만 보냅니다. 이 기능은 API 키가 필요합니다.' })]);
+    root.appendChild(el('div', { 'class': 'two', style: 'grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)' }, [el('div', { 'class': 'box' }, [el('h2', { text: '최근 알림 (' + FEED.length + '건)' }), feed]), set]));
+  }
+
+  // ===== 화면: ⑥ 수집 현황 =====
+  function render6(root) {
+    clear(root);
+    root.appendChild(el('div', { 'class': 'two', style: 'grid-template-columns:repeat(3,minmax(0,1fr))' }, SOURCES.map(function (s) {
+      return el('div', { 'class': 'src' }, [el('div', { style: 'display:flex;justify-content:space-between;gap:6px' }, [el('b', { text: s.name }), chip(s.state, s.color)]),
+        el('div', { 'class': 'muted', text: '마지막 실행: ' + s.last }), el('div', { 'class': 'muted', text: s.note })]);
+    })));
+    root.appendChild(el('div', { 'class': 'box', style: 'margin-top:12px' }, [el('h2', { text: '이번 주 처리 일정' }),
+      el('div', { 'class': 'timeline' }, [['월 09:00', '새 보고서 확인 · 원본 탭 기록'], ['월 10:30', '판정 · 성과기록 · 소재 주간 리포트 갱신'], ['월 11:00', '알림 메일 (우선순위 · 교체 전후 포함)']].map(function (t) {
+        return el('div', { 'class': 'step' }, [el('b', { text: t[0] }), el('span', { 'class': 'muted', text: t[1] })]);
+      }))]));
+    root.appendChild(el('div', { 'class': 'box', style: 'padding:0;overflow:auto' }, [table(['파일', '기간', '행 수', '소재 수', '상태', '메시지'], FILES.map(function (f) {
+      return { cells: [f.file, f.period, n0(f.rows), n0(f.creatives), chip(f.state, f.color), f.msg || '-'] };
+    }), { right: [2, 3], caption: '보고서 파일 처리 내역' })]));
+    root.appendChild(el('p', { 'class': 'note', text: '광고주센터 화면을 자동으로 조작해 내려받는 방식은 쓰지 않습니다. 드롭 폴더(마케터 업로드) 또는 API(STAT-REPORT)로 받습니다.' }));
+  }
+
+  // ===== 탭 =====
+  var TABS = [['소재 주간 리포트', render1], ['디자인 우선순위', render2], ['규격 점검', render3], ['교체 전후 기록', render4], ['이상 징후', render5], ['수집 현황', render6]];
+  var tabs = $('#tabs'), panels = $('#panels'), btns = [], bodies = [];
+  TABS.forEach(function (t, i) {
+    var b = el('button', { 'class': 'tab', role: 'tab', id: 'tab' + i, 'aria-controls': 'panel' + i, 'aria-selected': i === 0 ? 'true' : 'false', tabindex: i === 0 ? '0' : '-1', text: (i + 1) + '. ' + t[0] });
+    var p = el('section', { 'class': 'panel', role: 'tabpanel', id: 'panel' + i, 'aria-labelledby': 'tab' + i }); if (i) p.hidden = true;
+    tabs.appendChild(b); panels.appendChild(p); btns.push(b); bodies.push(p); t[1](p);
+    b.addEventListener('click', function () { show(i); });
+    b.addEventListener('keydown', function (e) {
+      var k = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (k) { e.preventDefault(); var j = (i + k + TABS.length) % TABS.length; show(j); btns[j].focus(); }
+    });
+  });
+  function show(i) {
+    btns.forEach(function (b, j) { b.setAttribute('aria-selected', j === i ? 'true' : 'false'); b.tabIndex = j === i ? 0 : -1; bodies[j].hidden = j !== i; });
+  }
+})();
+</script>
+</body>
+</html>

@@ -60,6 +60,7 @@ node tests/banner.test.js
 node tests/report.test.js
 node tests/manifest.test.js
 node tests/report.render.test.js   # 실제 브라우저(Chromium)로 보고서 화면 확인, 없으면 건너뜀
+node tests/draft.render.test.js    # 자동화 화면 초안(docs/draft) 확인, 없으면 건너뜀
 node tests/e2e.test.js   # 가짜 스프레드시트로 메뉴 흐름 전체 실행
 ```
 
