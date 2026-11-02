@@ -4,7 +4,7 @@
 
 **표기**: `[x]` 완료 · `[~]` 코드 작성·가짜 환경 테스트 통과, 실제 시트/API 미검증 · `[ ]` 미착수 · `[-]` 보류(대안 방식)
 
-테스트: `node tests/verdict.test.js`, `collect.test.js`, `alert.test.js`, `ai.test.js`, `mapping.test.js`, `banner.test.js`, `e2e.test.js` (모두 가짜 환경, 네이버·Claude 호출 없음). `e2e`는 가짜 스프레드시트로 초기화 → 데모 → 판정 → 알림 → 오류 경로 → 삭제를 실행한다.
+테스트: `node tests/verdict.test.js`, `collect.test.js`, `alert.test.js`, `ai.test.js`, `mapping.test.js`, `banner.test.js`, `report.test.js`, `report.render.test.js`(Chromium 필요), `manifest.test.js`, `e2e.test.js` (모두 가짜 환경, 네이버·Claude 호출 없음). `e2e`는 가짜 스프레드시트로 초기화 → 데모 → 판정 → 알림 → 오류 경로 → 삭제를 실행한다.
 
 | 단계 | 내용 | 완료 조건 |
 | --- | --- | --- |
@@ -37,7 +37,7 @@
 
 - [~] 6개 탭 생성(원본·매핑·판정·알림_로그·성과기록_배너·설정), 설정 기본값 입력 (`setupSheets`), 없는 설정 항목만 추가
 - [~] 스크립트 전용 탭 보호 (원본·판정·알림_로그)
-- [~] 메뉴 `네이버 광고`
+- [~] 메뉴 `네이버 광고`, 매니페스트 권한(UI·메일·이메일 포함) 검증 (`manifest.test.js`)
 - [~] API 키 입력창 (`setCredentials`, 스크립트 속성에만 저장)
 - [~] HMAC-SHA256 서명 (`타임스탬프.GET.경로`, 쿼리 제외), GET 전용 클라이언트, 429·5xx 재시도 3회
 - [~] 가짜 스프레드시트로 `setupSheets`, 재실행 안전성 검증 (`tests/e2e.test.js`)
@@ -73,6 +73,8 @@
 - [~] 교체일 기준 작업물 ID 분리, 교체 후 새 작업물 미등록 감지
 - [~] 미매핑 소재를 매핑 탭에 자동 추가, 최신 주 매핑률 계산
 - [~] 광고 상품별 소재 5개 미만이면 알림 끔, 파워링크 텍스트 판정 제외
+- [~] 보고서 화면: 그래프 보고서(수치 표시) + 일반 보고서(서브 창) → [REPORT.md](REPORT.md). 실제 브라우저(Chromium)로 수치·서브 창·필터 검증
+- [ ] 실제 시트에서 `11. 보고서 보기` 확인
 - [~] 설정 탭 값으로 기준 읽기
 - [~] 데모 데이터 → 판정 → 알림 미리보기 흐름 (메뉴 9, 5, 7), 가짜 스프레드시트로 검증
 - [ ] 실제 시트에서 데모 데이터로 `판정 실행` 확인 후 데모 삭제 ([SETUP.md](SETUP.md) "키 없이 해 볼 순서")

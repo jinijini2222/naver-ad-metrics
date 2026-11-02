@@ -1,7 +1,7 @@
 # 설치 방법
 
 1. 구글 시트를 만들고 **확장 프로그램 → Apps Script**를 연다.
-2. `src/` 의 `.gs` 파일 11개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Mapping`, `Banner`, `Alert`, `Ai`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣는다.
+2. `src/` 의 `.gs` 파일 12개(`Config`, `Setup`, `NaverApi`, `Collect`, `Verdict`, `Mapping`, `Banner`, `Alert`, `Ai`, `Report`, `Demo`, `Test`)를 각각 같은 이름의 스크립트 파일로 붙여넣고, **HTML 파일** `ReportGraph`(파일 `+` → HTML, 이름은 `ReportGraph`)에 `src/ReportGraph.html` 내용을 붙여넣는다.
 3. 프로젝트 설정에서 **"appsscript.json 매니페스트 파일 표시"**를 켜고 `src/appsscript.json` 내용으로 바꾼다. (타임존 Asia/Seoul, 메일·외부 요청 권한 포함)
 4. 시트를 새로고침하면 **네이버 광고** 메뉴가 생긴다. 순서대로 실행한다.
 
@@ -18,6 +18,7 @@
 | 8. 알림 발송 (수동) | 지난주 알림 메일 발송 | 아니오 |
 | 9. 데모 데이터 넣기 | 가짜 성과 48행과 매핑 10행 입력 | 아니오 |
 | 10. 데모 데이터 지우기 | `demo-`/`DEMO_` 행만 삭제하고 판정 재계산 | 아니오 |
+| 11. 보고서 보기 | 그래프 보고서 + 일반 보고서(서브 창) ([REPORT.md](REPORT.md)) | 아니오 |
 
 5. 설정 탭의 `알림 수신자`에 메일 주소를 쉼표로 입력한다. 처음 한 주는 본인만 넣고 검증한다.
 6. AI 개선안을 쓰려면 Apps Script 편집기에서 `setClaudeApiKey`를 실행해 Claude API 키를 입력하고, 설정 탭의 `AI 사용 여부`를 `TRUE`로 바꾼다.
@@ -44,7 +45,8 @@
 5. 같은 시점에 **성과기록_배너** 탭에도 작업물 ID별 최신 결과가 채워집니다 ([PERFORMANCE_LOG.md](PERFORMANCE_LOG.md)).
 6. **7. 알림 미리보기** → 편집기 **실행 로그**에 `기준 이하 소재 3건` 제목과 본문이 출력됩니다. 메일은 가지 않습니다.
 7. (선택) 설정 탭 `알림 수신자`에 본인 주소를 넣고 **8. 알림 발송** → 본인에게 메일이 옵니다. 알림_로그 탭에 3건이 기록됩니다.
-8. 확인이 끝나면 **10. 데모 데이터 지우기**. **실제 수집 전에 반드시 지우세요.** 데모 행이 남아 있으면 기준선이 오염됩니다.
+8. **11. 보고서 보기**로 그래프와 일반 보고서(서브 창)를 확인합니다.
+9. 확인이 끝나면 **10. 데모 데이터 지우기**. **실제 수집 전에 반드시 지우세요.** 데모 행이 남아 있으면 기준선이 오염됩니다.
 
 ## 테스트 (가짜 환경, 키 불필요)
 
@@ -55,6 +57,9 @@ node tests/alert.test.js
 node tests/ai.test.js
 node tests/mapping.test.js
 node tests/banner.test.js
+node tests/report.test.js
+node tests/manifest.test.js
+node tests/report.render.test.js   # 실제 브라우저(Chromium)로 보고서 화면 확인, 없으면 건너뜀
 node tests/e2e.test.js   # 가짜 스프레드시트로 메뉴 흐름 전체 실행
 ```
 

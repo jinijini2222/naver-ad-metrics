@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>성과 보고서</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --panel:#f8fafc; --accent:#1a73e8;
+          --good:#2e7d32; --mid:#5f6b7a; --bad:#c62828; --nodata:#b0b7c3; --warn:#9a6700; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:14px 16px 28px; font:13px/1.5 "Noto Sans KR","Malgun Gothic",system-ui,sans-serif; color:var(--ink); background:#fff; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  h2 { font-size:14px; margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:12px; }
+  .top { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; justify-content:space-between; margin-bottom:12px; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  label.f { display:flex; flex-direction:column; font-size:11px; color:var(--muted); gap:2px; }
+  select, button { font:inherit; padding:5px 9px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; color:var(--ink); }
+  button { cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button:focus-visible, select:focus-visible, .row:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .kpis { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:8px; margin-bottom:14px; }
+  .kpi { border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--panel); }
+  .kpi .n { font-size:22px; font-weight:700; line-height:1.2; }
+  .kpi .l { font-size:11px; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:14px; }
+  .card { border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .card.wide { grid-column:1 / -1; }
+  svg { display:block; width:100%; height:auto; }
+  svg text { font-family:inherit; }
+  .works { max-height:330px; overflow:auto; }
+  .row { display:grid; grid-template-columns:92px minmax(0,1fr) 168px; gap:8px; align-items:center; padding:3px 4px; border-radius:6px; cursor:pointer; }
+  .row:hover, .row.sel { background:#eef4ff; }
+  .row .id { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .track { position:relative; height:14px; background:#f1f5f9; border-radius:3px; }
+  .bar { position:absolute; left:0; top:0; bottom:0; border-radius:3px; }
+  .base { position:absolute; top:-3px; bottom:-3px; width:2px; background:#111827; }
+  .val { font-size:11.5px; text-align:right; white-space:nowrap; }
+  .mini { width:100%; border-collapse:collapse; font-size:11.5px; margin-top:8px; }
+  .mini th, .mini td { border:1px solid var(--line); padding:3px 6px; text-align:right; white-space:nowrap; }
+  .mini th:first-child, .mini td:first-child { text-align:left; }
+  .mini th { background:var(--panel); font-weight:600; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .empty { padding:30px; text-align:center; color:var(--muted); }
+  /* 서브 창 (일반 보고서) */
+  .scrim { position:fixed; inset:0; background:rgba(15,23,42,.35); display:none; z-index:10; }
+  .scrim.on { display:block; }
+  .subwin { position:fixed; left:50%; top:28px; transform:translateX(-50%); width:min(880px, 94vw); height:min(660px, 90vh);
+            min-width:360px; min-height:240px; background:#fff; border:1px solid #94a3b8; border-radius:10px;
+            box-shadow:0 12px 40px rgba(15,23,42,.35); display:none; flex-direction:column; resize:both; overflow:hidden; z-index:11; }
+  .subwin.on { display:flex; }
+  .subbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f1f5f9;
+            border-bottom:1px solid var(--line); cursor:move; user-select:none; }
+  .subbar b { font-size:13px; }
+  .subbody { padding:14px 18px 24px; overflow:auto; flex:1; }
+  .rep h1 { font-size:18px; border-bottom:2px solid var(--ink); padding-bottom:6px; margin-bottom:10px; }
+  .rep h3 { font-size:14px; margin:18px 0 6px; }
+  .rep table { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:4px; }
+  .rep th, .rep td { border:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
+  .rep th { background:var(--panel); font-weight:600; white-space:nowrap; }
+  .rep td.r { text-align:right; white-space:nowrap; }
+  .rep p { margin:4px 0; }
+  .tag { display:inline-block; padding:0 6px; border-radius:9px; font-size:11px; color:#fff; }
+  @media (max-width: 760px) { .kpis { grid-template-columns:repeat(3, minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <h1>광고 소재 성과 보고서</h1>
+    <div class="muted" id="meta">불러오는 중…</div>
+  </div>
+  <div class="controls">
+    <label class="f">주차<select id="week"></select></label>
+    <label class="f">광고 상품<select id="product"></select></label>
+    <button id="reload" type="button">새로고침</button>
+    <button id="openGeneral" type="button" class="primary">일반 보고서</button>
+  </div>
+</div>
+
+<div id="err" class="empty" style="display:none"></div>
+<div id="main" style="display:none">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <section class="card" aria-labelledby="h-dist">
+      <h2 id="h-dist">판정 분포</h2>
+      <div id="dist"></div>
+    </section>
+    <section class="card" aria-labelledby="h-trend">
+      <h2 id="h-trend">주차별 CTR 추이 <span class="muted" id="trendWho"></span></h2>
+      <div id="trend"></div>
+      <div class="legend" id="trendLegend"></div>
+      <div id="trendTable"></div>
+    </section>
+    <section class="card wide" aria-labelledby="h-works">
+      <h2 id="h-works">작업물별 CTR과 기준선 <span class="muted">(막대 = 이번 주 CTR, 검은 선 = 기준선, 행을 누르면 추이 그래프에 표시)</span></h2>
+      <div class="works" id="works"></div>
+      <div class="legend" id="worksLegend"></div>
+    </section>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="subwin" id="sub" role="dialog" aria-modal="true" aria-label="일반 보고서">
+  <div class="subbar" id="subbar"><b>일반 보고서</b><button id="closeSub" type="button" aria-label="닫기">닫기 ✕</button></div>
+  <div class="subbody rep" id="subbody"></div>
+</div>
+
+<script>
+(function () {
+  var DATA = null;
+  var state = { week: '', product: '전체', work: '' };
+  var ORDER = ['성공', '보통', '개선 필요', '데이터 부족'];
+  var HEX = { '성공': '#2e7d32', '보통': '#5f6b7a', '개선 필요': '#c62828', '데이터 부족': '#b0b7c3' };
+  var BASE_COLORS = ['#7c8aa0', '#b08900', '#7a5ea8'];
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') e.textContent = attrs[k]; else if (k === 'style') e.style.cssText = attrs[k]; else e.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(tag, attrs, kids) {
+    var e = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { e.appendChild(c); });
+    return e;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  function pct(x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; }
+  function pct1(x) { return (x * 100).toFixed(1) + '%'; }
+  function delta(r) { if (r == null) return '-'; var d = (r - 1) * 100; return (d >= 0 ? '+' : '') + d.toFixed(0) + '%'; }
+  function won(x) { return x == null ? '-' : Math.round(x).toLocaleString('ko-KR') + '원'; }
+  function roas(x) { return x == null ? '-' : Math.round(x * 100) + '%'; }
+  function weekText(w) { return (DATA.weekLabels[w] || w); }
+
+  // ---------- 데이터 선택 ----------
+  function rowsOf(week, product) {
+    return DATA.rows.filter(function (r) { return r.week === week && (product === '전체' || r.product === product); });
+  }
+  function counts(rows) {
+    var c = { total: rows.length, alerts: 0 };
+    ORDER.forEach(function (v) { c[v] = 0; });
+    rows.forEach(function (r) { if (c[r.verdict] != null) c[r.verdict]++; if (r.alertType) c.alerts++; });
+    return c;
+  }
+  function baselineOf(product, week) {
+    var r = DATA.rows.filter(function (x) { return x.product === product && x.week === week && x.baseCtr != null; })[0];
+    return r ? r.baseCtr : null;
+  }
+  function sortWorst(rows) {
+    return rows.slice().sort(function (a, b) {
+      var an = a.ratio == null, bn = b.ratio == null;
+      if (an !== bn) return an ? 1 : -1;
+      if (!an && a.ratio !== b.ratio) return a.ratio - b.ratio;
+      return a.workId < b.workId ? -1 : 1;
+    });
+  }
+
+  // ---------- 화면 ----------
+  function renderAll() {
+    var rows = rowsOf(state.week, state.product);
+    $('meta').textContent = weekText(state.week) + ' · 판정 대상 ' + rows.length + '건 · 생성 ' + DATA.generatedAt;
+    renderKpis(rows); renderDist(rows); renderWorks(rows); renderTrend();
+  }
+
+  function renderKpis(rows) {
+    var c = counts(rows), box = $('kpis'); clear(box);
+    [['판정 대상', c.total, 'var(--ink)'], ['성공', c['성공'], HEX['성공']], ['보통', c['보통'], HEX['보통']],
+     ['개선 필요', c['개선 필요'], HEX['개선 필요']], ['데이터 부족', c['데이터 부족'], 'var(--muted)'], ['알림 대상', c.alerts, 'var(--warn)']]
+    .forEach(function (k) {
+      box.appendChild(el('div', { 'class': 'kpi' }, [el('div', { 'class': 'n', text: String(k[1]), style: 'color:' + k[2] }), el('div', { 'class': 'l', text: k[0] })]));
+    });
+  }
+
+  function renderDist(rows) {
+    var c = counts(rows), box = $('dist'); clear(box);
+    if (!rows.length) { box.appendChild(el('div', { 'class': 'empty', text: '이 주차에는 판정 데이터가 없습니다.' })); return; }
+    var W = 420, rowH = 40, H = ORDER.length * rowH + 6, labelW = 78, barMax = W - labelW - 86;
+    var max = Math.max.apply(null, ORDER.map(function (v) { return c[v]; }).concat([1]));
+    var s = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': '판정 분포 막대 그래프' });
+    ORDER.forEach(function (v, i) {
+      var y = i * rowH + 6, w = Math.max(c[v] ? 3 : 0, Math.round(barMax * c[v] / max));
+      s.appendChild(sv('text', { x: 0, y: y + 21, 'font-size': 12.5, fill: '#1f2937', text: v }));
+      s.appendChild(sv('rect', { x: labelW, y: y + 6, width: barMax, height: 20, rx: 3, fill: '#f1f5f9' }));
+      var bar = sv('rect', { x: labelW, y: y + 6, width: w, height: 20, rx: 3, fill: HEX[v] });
+      bar.appendChild(sv('title', { text: v + ' ' + c[v] + '건' }));
+      s.appendChild(bar);
+      s.appendChild(sv('text', { x: labelW + barMax + 8, y: y + 21, 'font-size': 12.5, 'font-weight': 700, fill: '#1f2937', text: c[v] + '건 (' + (c.total ? Math.round(c[v] * 100 / c.total) : 0) + '%)' }));
+    });
+    box.appendChild(s);
+  }
+
+  function renderWorks(rows) {
+    var box = $('works'), leg = $('worksLegend'); clear(box); clear(leg);
+    if (!rows.length) { box.appendChild(el('div', { 'class': 'empty', text: '표시할 작업물이 없습니다.' })); return; }
+    var sorted = sortWorst(rows), max = 0.0001;
+    sorted.forEach(function (r) { max = Math.max(max, r.ctr || 0, r.baseCtr || 0); });
+    max *= 1.12;
+    sorted.forEach(function (r) {
+      var color = HEX[r.verdict] || '#b0b7c3';
+      var track = el('div', { 'class': 'track' });
+      track.appendChild(el('div', { 'class': 'bar', style: 'width:' + (r.ctr == null ? 0 : Math.max(1, r.ctr / max * 100)) + '%;background:' + color }));
+      if (r.baseCtr != null) track.appendChild(el('div', { 'class': 'base', style: 'left:' + (r.baseCtr / max * 100) + '%', title: '기준선 ' + pct(r.baseCtr) }));
+      var text = r.verdict === '데이터 부족' ? pct(r.ctr) + ' · 데이터 부족' : pct(r.ctr) + ' (' + delta(r.ratio) + ')';
+      var row = el('div', { 'class': 'row' + (r.workId === state.work ? ' sel' : ''), tabindex: '0', role: 'button', 'data-work': r.workId,
+        title: r.workId + '\nCTR ' + pct(r.ctr) + ' / 기준선 ' + pct(r.baseCtr) + ' / ' + r.verdict + (r.alertType ? ' / 알림: ' + r.alertType : '') + (r.rankFlag ? ' / ' + r.rankFlag : '') },
+        [el('div', { 'class': 'id', text: r.workId }), track, el('div', { 'class': 'val', text: text })]);
+      function pick() { state.work = r.workId; renderWorks(rows); renderTrend(); }
+      row.addEventListener('click', pick);
+      row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      box.appendChild(row);
+    });
+    ORDER.forEach(function (v) {
+      leg.appendChild(el('span', {}, [el('span', { 'class': 'sw', style: 'background:' + HEX[v] }), v]));
+    });
+    leg.appendChild(el('span', {}, [el('span', { 'class': 'sw', style: 'background:#111827;width:3px' }), '기준선']));
+  }
+
+  function renderTrend() {
+    var box = $('trend'), leg = $('trendLegend'), who = $('trendWho'), tbl = $('trendTable'); clear(box); clear(leg); clear(tbl);
+    var weeks = DATA.weeks;
+    var products = [];
+    DATA.rows.forEach(function (r) { if (r.product && products.indexOf(r.product) < 0 && (state.product === '전체' || r.product === state.product)) products.push(r.product); });
+    var work = DATA.rows.filter(function (r) { return r.workId === state.work; });
+    who.textContent = state.work ? '· 선택: ' + state.work : '· 작업물을 선택하면 함께 표시됩니다';
+
+    var series = products.map(function (p, i) {
+      return { name: '기준선 · ' + p, color: BASE_COLORS[i % BASE_COLORS.length], dash: '5 4',
+               pts: weeks.map(function (w) { return baselineOf(p, w); }) };
+    });
+    if (work.length) {
+      series.push({ name: state.work, color: '#1a73e8', dash: '', pts: weeks.map(function (w) {
+        var r = work.filter(function (x) { return x.week === w; })[0]; return r ? r.ctr : null; }) });
+    }
+    var all = []; series.forEach(function (s) { s.pts.forEach(function (v) { if (v != null) all.push(v); }); });
+    if (!all.length) { box.appendChild(el('div', { 'class': 'empty', text: '추이를 그릴 데이터가 없습니다.' })); return; }
+
+    var W = 640, H = 270, L = 52, R = 34, T = 22, B = 36, max = Math.max.apply(null, all) * 1.2 || 0.01;
+    var iw = W - L - R, ih = H - T - B;
+    var PAD = 30; // 양 끝 점이 축 눈금·가장자리와 겹치지 않도록 안쪽으로
+    function X(i) { return weeks.length === 1 ? L + iw / 2 : L + PAD + (iw - 2 * PAD) * i / (weeks.length - 1); }
+    function Y(v) { return T + ih - ih * v / max; }
+    var s = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': '주차별 CTR 추이 꺾은선 그래프' });
+    for (var t = 0; t <= 4; t++) {
+      var v = max * t / 4, y = Y(v);
+      s.appendChild(sv('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: '#e5e7eb' }));
+      s.appendChild(sv('text', { x: L - 6, y: y + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#6b7280', text: pct1(v) }));
+    }
+    weeks.forEach(function (w, i) {
+      s.appendChild(sv('text', { x: X(i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#6b7280', text: (DATA.weekLabels[w] || w).split('~')[0] + ' 주' }));
+    });
+    series.forEach(function (se, si) {
+      var d = '', started = false;
+      se.pts.forEach(function (v, i) { if (v == null) { started = false; return; } d += (started ? 'L' : 'M') + X(i) + ' ' + Y(v) + ' '; started = true; });
+      if (d) s.appendChild(sv('path', { d: d, fill: 'none', stroke: se.color, 'stroke-width': se.dash ? 2 : 2.6, 'stroke-dasharray': se.dash }));
+      se.pts.forEach(function (v, i) {
+        if (v == null) return;
+        var c = sv('circle', { cx: X(i), cy: Y(v), r: se.dash ? 3 : 4.5, fill: '#fff', stroke: se.color, 'stroke-width': 2 }, [sv('title', { text: se.name + ' ' + (DATA.weekLabels[weeks[i]] || '') + ' ' + pct(v) })]);
+        s.appendChild(c);
+        // 선택한 작업물만 그래프 위에 수치를 적는다 (기준선은 겹치므로 아래 표에 표시)
+        if (!se.dash) {
+          // 기준선보다 낮으면 점 아래에, 아니면 위에 적어 기준선과 겹치지 않게 한다
+          var ref = 0;
+          series.forEach(function (o) { if (o.dash && o.pts[i] != null) ref = Math.max(ref, o.pts[i]); });
+          var below = v < ref;
+          s.appendChild(sv('text', { x: X(i), y: Y(v) + (below ? 20 : -10), 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 700, fill: se.color, text: pct(v) }));
+        }
+      });
+      leg.appendChild(el('span', {}, [el('span', { 'class': 'sw', style: 'background:' + se.color }), se.name]));
+    });
+    box.appendChild(s);
+
+    // 수치 표: 주차별 값을 겹침 없이 확인
+    var head = el('tr', {}, [el('th', { text: '' })].concat(weeks.map(function (w) { return el('th', { text: (DATA.weekLabels[w] || w).split('~')[0] }); })));
+    var body = series.map(function (se) {
+      return el('tr', {}, [el('td', {}, [el('span', { 'class': 'sw', style: 'background:' + se.color }), se.name])]
+        .concat(se.pts.map(function (v) { return el('td', { text: pct(v) }); })));
+    });
+    tbl.appendChild(el('table', { 'class': 'mini' }, [el('thead', {}, [head]), el('tbody', {}, body)]));
+  }
+
+  // ---------- 일반 보고서 (서브 창) ----------
+  function tag(text, color) { return el('span', { 'class': 'tag', text: text, style: 'background:' + color }); }
+  var VC = HEX;
+
+  function table(head, body, rightCols) {
+    var t = el('table'), tr = el('tr');
+    head.forEach(function (h) { tr.appendChild(el('th', { text: h })); });
+    t.appendChild(el('thead', {}, [tr]));
+    var tb = el('tbody');
+    body.forEach(function (r) {
+      var row = el('tr');
+      r.forEach(function (c, i) {
+        var td = el('td', rightCols && rightCols.indexOf(i) >= 0 ? { 'class': 'r' } : {});
+        if (c && c.nodeType) td.appendChild(c); else td.textContent = c == null ? '' : String(c);
+        row.appendChild(td);
+      });
+      tb.appendChild(row);
+    });
+    t.appendChild(tb);
+    return t;
+  }
+
+  function buildGeneral() {
+    var rows = rowsOf(state.week, state.product), c = counts(rows);
+    var prevIdx = DATA.weeks.indexOf(state.week) - 1;
+    var prev = prevIdx >= 0 ? counts(rowsOf(DATA.weeks[prevIdx], state.product)) : null;
+    var root = el('div');
+    root.appendChild(el('h1', { text: '광고 소재 성과 주간 보고서' }));
+    root.appendChild(el('p', { text: '기간: ' + weekText(state.week) + ' (월~일)   ·   광고 상품: ' + state.product + '   ·   생성: ' + DATA.generatedAt }));
+
+    root.appendChild(el('h3', { text: '1. 요약' }));
+    var sum = '판정 대상 ' + c.total + '건 중 성공 ' + c['성공'] + '건, 보통 ' + c['보통'] + '건, 개선 필요 ' + c['개선 필요'] + '건, 데이터 부족 ' + c['데이터 부족'] + '건입니다. 알림 대상은 ' + c.alerts + '건입니다.';
+    root.appendChild(el('p', { text: sum }));
+    if (prev) {
+      var d = c['개선 필요'] - prev['개선 필요'];
+      root.appendChild(el('p', { text: '전주(' + weekText(DATA.weeks[prevIdx]) + ') 대비 개선 필요는 ' + (d === 0 ? '변동 없음' : (d > 0 ? '+' : '') + d + '건') + '입니다.' }));
+    }
+    root.appendChild(table(['판정', '건수', '비율'], ORDER.map(function (v) {
+      return [tag(v, VC[v]), c[v] + '건', c.total ? Math.round(c[v] * 100 / c.total) + '%' : '-'];
+    }), [1, 2]));
+
+    var products = [];
+    rows.forEach(function (r) { if (products.indexOf(r.product) < 0) products.push(r.product); });
+    root.appendChild(el('h3', { text: '2. 광고 상품별 기준선' }));
+    root.appendChild(products.length ? table(['광고 상품', '기준선 CTR', '작업물', '성공', '보통', '개선 필요', '데이터 부족'], products.map(function (p) {
+      var pr = rows.filter(function (r) { return r.product === p; }), pc = counts(pr);
+      return [p, pct(baselineOf(p, state.week)), pc.total, pc['성공'], pc['보통'], pc['개선 필요'], pc['데이터 부족']];
+    }), [1, 2, 3, 4, 5, 6]) : el('p', { text: '데이터가 없습니다.' }));
+
+    var alerts = sortWorst(rows.filter(function (r) { return r.alertType; }));
+    root.appendChild(el('h3', { text: '3. 알림 대상 (' + alerts.length + '건)' }));
+    root.appendChild(alerts.length ? table(['작업물 ID', '광고 상품', 'CTR', '기준선 대비', '알림 유형', '진단'], alerts.map(function (r) {
+      return [r.workId, r.product, pct(r.ctr), delta(r.ratio), r.alertType + (r.rankFlag ? ' · ' + r.rankFlag : ''), r.diagnosis];
+    }), [2, 3]) : el('p', { text: '이 주차에는 알림 대상이 없습니다.' }));
+
+    root.appendChild(el('h3', { text: '4. 전체 작업물' }));
+    root.appendChild(rows.length ? table(['작업물 ID', '광고 상품', 'CTR', '기준선', '기준선 대비', '판정', '전환율', 'CPC', 'ROAS', '3주 추이'],
+      sortWorst(rows).map(function (r) {
+        return [r.workId, r.product, pct(r.ctr), pct(r.baseCtr), delta(r.ratio), tag(r.verdict, VC[r.verdict] || '#8c95a3'), pct(r.convRate), won(r.cpc), roas(r.roas), r.trend];
+      }), [2, 3, 4, 6, 7, 8]) : el('p', { text: '데이터가 없습니다.' }));
+
+    var un = DATA.unmapped || [];
+    root.appendChild(el('h3', { text: '5. 미매핑 소재 (' + un.length + '건)' }));
+    if (un.length) {
+      root.appendChild(table(['소재 ID', '광고 상품', '메모'], un.map(function (u) { return [u.creativeId, u.product, u.memo]; })));
+      root.appendChild(el('p', { 'class': 'muted', text: '매핑 탭에서 작업물 ID를 채워 주세요.' }));
+    } else { root.appendChild(el('p', { text: '미매핑 소재가 없습니다.' })); }
+
+    root.appendChild(el('p', { 'class': 'muted', style: 'margin-top:14px', text: '판정 기준: 기준선 대비 +20% 이상 성공, -20% 이하 개선 필요, 주간 노출 1,000 미만 데이터 부족 (설정 탭 값 기준). 소재 피로는 CTR이 3주 연속 하락할 때 알림 대상에 포함됩니다.' }));
+    return root;
+  }
+
+  var lastFocus = null;
+  function openSub() {
+    lastFocus = document.activeElement;
+    var body = $('subbody'); clear(body); body.appendChild(buildGeneral());
+    $('scrim').classList.add('on'); $('sub').classList.add('on'); $('closeSub').focus();
+  }
+  function closeSub() {
+    $('scrim').classList.remove('on'); $('sub').classList.remove('on');
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('sub').classList.contains('on')) closeSub(); });
+  $('closeSub').addEventListener('click', closeSub);
+  $('scrim').addEventListener('click', closeSub);
+  $('openGeneral').addEventListener('click', openSub);
+
+  // 서브 창 이동 (제목 줄을 끌면 움직임)
+  (function () {
+    var bar = $('subbar'), sub = $('sub'), drag = null;
+    bar.addEventListener('mousedown', function (e) {
+      if (e.target.tagName === 'BUTTON') return;
+      var r = sub.getBoundingClientRect();
+      sub.style.transform = 'none'; sub.style.left = r.left + 'px'; sub.style.top = r.top + 'px';
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!drag) return;
+      sub.style.left = Math.max(0, e.clientX - drag.dx) + 'px'; sub.style.top = Math.max(0, e.clientY - drag.dy) + 'px';
+    });
+    document.addEventListener('mouseup', function () { drag = null; });
+  })();
+
+  // ---------- 초기화 ----------
+  function fill(select, values, labelOf, selected) {
+    clear(select);
+    values.forEach(function (v) { var o = el('option', { value: v, text: labelOf ? labelOf(v) : v }); if (v === selected) o.selected = true; select.appendChild(o); });
+  }
+
+  function init(data) {
+    DATA = data;
+    if (!data.rows.length) { showError('판정 데이터가 없습니다. 메뉴에서 5. 판정 실행을 먼저 해 주세요.'); return; }
+    $('err').style.display = 'none'; $('main').style.display = 'block';
+    var weeksDesc = data.weeks.slice().reverse();
+    if (!state.week || data.weeks.indexOf(state.week) < 0) state.week = data.latestWeek;
+    fill($('week'), weeksDesc, weekText, state.week);
+    var products = ['전체'];
+    data.rows.forEach(function (r) { if (r.product && products.indexOf(r.product) < 0) products.push(r.product); });
+    fill($('product'), products, null, state.product);
+    if (!state.work || !data.rows.some(function (r) { return r.workId === state.work; })) {
+      var first = sortWorst(rowsOf(state.week, state.product)).filter(function (r) { return r.alertType; })[0] || sortWorst(rowsOf(state.week, state.product))[0];
+      state.work = first ? first.workId : '';
+    }
+    renderAll();
+  }
+  function showError(msg) {
+    $('main').style.display = 'none'; var e = $('err'); e.style.display = 'block'; e.textContent = msg; $('meta').textContent = '';
+  }
+  function load() {
+    $('meta').textContent = '불러오는 중…';
+    google.script.run.withSuccessHandler(init).withFailureHandler(function (err) { showError('데이터를 불러오지 못했습니다: ' + (err && err.message ? err.message : err)); }).getReportData();
+  }
+  $('week').addEventListener('change', function () { state.week = this.value; renderAll(); });
+  $('product').addEventListener('change', function () { state.product = this.value; renderAll(); });
+  $('reload').addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>
