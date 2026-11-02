@@ -1,0 +1,11 @@
+# 비밀 값은 절대 커밋하지 않는다. secrets/ 안에서는 README와 예시 파일만 추적한다.
+secrets/*
+!secrets/README.md
+!secrets/keys.env.example
+
+# 흔한 비밀 파일 패턴
+*.env
+!*.env.example
+.clasprc.json
+.clasp.json
+node_modules/
